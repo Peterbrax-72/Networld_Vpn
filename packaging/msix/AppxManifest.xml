@@ -20,14 +20,14 @@
   IgnorableNamespaces="uap uap3 uap5 desktop rescap">
 
   <Identity
-    Name="REPLACE-ME.NetworldVPN"
-    Publisher="CN=REPLACE-ME"
+    Name="1.Pinchezmedia254.NetworldVpn"
+    Publisher="CN=7C4B5718-ABC5-44CF-90A7-C6509421DA7E"
     Version="1.0.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>Networld VPN</DisplayName>
-    <PublisherDisplayName>REPLACE-ME</PublisherDisplayName>
+    <PublisherDisplayName>Pinchezmedia254</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Multi-protocol tunnelling client with SSH, SSH-over-TLS, HTTP payload injection, V2Ray/Xray, split tunnelling and a kill switch.</Description>
   </Properties>
