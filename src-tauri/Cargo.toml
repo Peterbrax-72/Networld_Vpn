@@ -35,3 +35,8 @@ tauri-plugin-single-instance = "2"
 # Enabled for the Microsoft Store / MSIX build: hides engines that need
 # administrator rights or a helper service (WireGuard, TUN mode).
 store = []
+# Embed the built UI (../dist) in the exe. Without it a plain `cargo build
+# --release` binary tries to load the dev server at http://localhost:1420 and
+# shows a blank/error window. `tauri build` turns this on by itself; direct
+# cargo builds (CI portable exe, MSIX) must pass it.
+custom-protocol = ["tauri/custom-protocol"]
