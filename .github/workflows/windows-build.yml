@@ -45,14 +45,18 @@ jobs:
           } elseif ("${{ inputs.version }}") {
             $v = "${{ inputs.version }}"
           } else {
-            # untagged builds get the manifest version + the run number as revision
+            # untagged builds get the manifest version, with the run number as patch
             $v = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
           }
           $parts = @($v.Split('.'))
           while ($parts.Count -lt 4) { $parts += "0" }
+          # The Store rejects any package whose revision (4th number) is not 0,
+          # so the run number goes in the 3rd number of untagged builds and the
+          # revision is always 0. Tag v1.2.3 -> 1.2.3.0; untagged -> 1.0.<run>.0.
           if ("${{ github.ref_type }}" -ne "tag" -and -not "${{ inputs.version }}") {
-            $parts[3] = "${{ github.run_number }}"
+            $parts[2] = "${{ github.run_number }}"
           }
+          $parts[3] = "0"
           $full = ($parts[0..3] -join '.')
           "version=$full"                >> $env:GITHUB_OUTPUT
           "semver=$($parts[0..2] -join '.')" >> $env:GITHUB_OUTPUT
