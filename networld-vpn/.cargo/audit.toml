@@ -1,0 +1,28 @@
+# cargo-audit configuration — read by .github/workflows/security.yml
+#
+# Advisories listed here are still printed in every report; they just do not
+# fail the build. Each one needs a reason and a revisit trigger.
+
+[advisories]
+ignore = [
+  # RUSTSEC-2023-0071 — "Marvin attack" timing sidechannel in the `rsa` crate.
+  #
+  # Reached through: russh -> rsa (RSA host keys / publickey auth).
+  # No fixed version exists upstream.
+  #
+  # Why it does not apply here: the attack recovers a private key from timing
+  # of *RSA decryption* oracles. Networld VPN never decrypts with an RSA
+  # private key — SSH uses RSA only to verify the server's host-key signature
+  # (public-key operation) and, when the user supplies an RSA key, to sign its
+  # own authentication challenge.
+  #
+  # Revisit when: the `rsa` crate ships a constant-time release, or russh
+  # switches its RSA backend. Dropping russh's `rsa` feature is not an option
+  # — it breaks handshakes with RSA-host-key servers such as dropbear.
+  "RUSTSEC-2023-0071",
+]
+
+informational_warnings = ["unmaintained", "unsound"]
+
+[output]
+deny = ["warnings"]

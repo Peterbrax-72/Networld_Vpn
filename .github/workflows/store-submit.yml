@@ -1,0 +1,204 @@
+name: Submit to Microsoft Store
+
+# Manual gate between "an MSIX exists" and "Partner Center has it".
+#
+# One-time setup (Partner Center → Account settings → User management →
+# Azure AD applications, then Developer settings → API access):
+#   secrets    AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET
+#   variable   STORE_PRODUCT_ID   (the 12-character product id)
+#
+# Without those the job still downloads and validates the package, then stops
+# with a notice — it never fails a release because the Store account is not
+# wired up yet. Run it once with publish = false and check the draft in
+# Partner Center before trusting it with a real submission.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run id of the Windows build to submit (blank = latest successful run on the default branch)"
+        required: false
+        default: ""
+      release_notes:
+        description: "What's new in this submission"
+        required: false
+        default: "Bug fixes and performance improvements."
+      publish:
+        description: "Publish after upload (otherwise the submission is left as a draft)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: store-submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Upload the MSIX to Partner Center
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the source build
+        id: src
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $id = "${{ inputs.run_id }}"
+          if (-not $id) {
+            $id = gh run list --workflow windows-build.yml --status success `
+                    --branch ${{ github.event.repository.default_branch }} `
+                    --limit 1 --json databaseId --jq '.[0].databaseId'
+          }
+          if (-not $id) { throw "no successful windows-build.yml run to take an MSIX from" }
+          "run-id=$id" >> $env:GITHUB_OUTPUT
+          Write-Host "Using run $id"
+
+      - name: Download the MSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: NetworldVPN-*-msix
+          merge-multiple: true
+          path: msix
+          run-id: ${{ steps.src.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      # Catches the classic mistakes before Partner Center does: wrong Identity
+      # Name, placeholder publisher, or a Revision other than 0 (Store rejects
+      # non-zero revisions).
+      - name: Validate the package
+        id: pkg
+        shell: pwsh
+        env:
+          WANT_IDENTITY: ${{ vars.MSIX_IDENTITY_NAME }}
+          WANT_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+        run: |
+          $msix = Get-ChildItem msix -Recurse -Filter *.msix | Select-Object -First 1
+          if (-not $msix) { throw "no .msix found in the downloaded artifact" }
+
+          $tmp = Join-Path $env:RUNNER_TEMP "msix-extract"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP "package.zip"
+          Copy-Item $msix.FullName $zip -Force
+          Expand-Archive $zip -DestinationPath $tmp -Force
+
+          [xml]$m = Get-Content (Join-Path $tmp "AppxManifest.xml")
+          $identity = $m.Package.Identity
+          $size = "{0:N1} MB" -f ($msix.Length / 1MB)
+
+          Write-Host "Package  : $($msix.Name) ($size)"
+          Write-Host "Identity : $($identity.Name)"
+          Write-Host "Publisher: $($identity.Publisher)"
+          Write-Host "Version  : $($identity.Version)"
+
+          $fail = @()
+          if ($identity.Name -like "*REPLACE-ME*" -or $identity.Publisher -like "*REPLACE-ME*") {
+            $fail += "the manifest still carries a REPLACE-ME placeholder"
+          }
+          if ($identity.Version.Split('.')[3] -ne "0") {
+            $fail += "Store packages must end in revision 0, got $($identity.Version)"
+          }
+          if ($env:WANT_IDENTITY -and $identity.Name -ne $env:WANT_IDENTITY) {
+            $fail += "Identity Name is $($identity.Name), expected $env:WANT_IDENTITY"
+          }
+          if ($env:WANT_PUBLISHER -and $identity.Publisher -ne $env:WANT_PUBLISHER) {
+            $fail += "Publisher is $($identity.Publisher), expected $env:WANT_PUBLISHER"
+          }
+          foreach ($f in $fail) { Write-Host "::error::$f" }
+          if ($fail.Count) { exit 1 }
+
+          "path=$($msix.FullName)"          >> $env:GITHUB_OUTPUT
+          "name=$($msix.Name)"              >> $env:GITHUB_OUTPUT
+          "version=$($identity.Version)"    >> $env:GITHUB_OUTPUT
+          "size=$size"                      >> $env:GITHUB_OUTPUT
+
+      - name: Check the Store credentials
+        id: creds
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+          CLIENT: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          PRODUCT: ${{ vars.STORE_PRODUCT_ID }}
+        run: |
+          $missing = @()
+          if (-not $env:TENANT)  { $missing += "secret AZURE_AD_TENANT_ID" }
+          if (-not $env:CLIENT)  { $missing += "secret AZURE_AD_CLIENT_ID" }
+          if (-not $env:SECRET)  { $missing += "secret AZURE_AD_CLIENT_SECRET" }
+          if (-not $env:PRODUCT) { $missing += "variable STORE_PRODUCT_ID" }
+          if ($missing.Count) {
+            Write-Host "::notice::Store upload skipped - not configured: $($missing -join ', ')"
+            "ready=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "ready=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Configure the Store CLI
+        if: steps.creds.outputs.ready == 'true'
+        uses: microsoft/store-submission@v1
+        with:
+          command: configure
+          type: AzureAD
+          tenant-id: ${{ secrets.AZURE_AD_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+
+      # Build the JSON in PowerShell so quotes/newlines in the notes can't break it.
+      - name: Build the submission update
+        id: upd
+        if: steps.creds.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          NOTES: ${{ inputs.release_notes }}
+          PKG: ${{ steps.pkg.outputs.path }}
+        run: |
+          $obj = @{
+            packages = @(@{ packageUrl = $env:PKG })
+            listings = @{ "en-us" = @{ releaseNotes = $env:NOTES } }
+          }
+          "json=$($obj | ConvertTo-Json -Depth 5 -Compress)" >> $env:GITHUB_OUTPUT
+
+      - name: Update the draft submission
+        if: steps.creds.outputs.ready == 'true'
+        uses: microsoft/store-submission@v1
+        with:
+          command: update
+          product-id: ${{ vars.STORE_PRODUCT_ID }}
+          product-update: ${{ steps.upd.outputs.json }}
+
+      - name: Publish
+        if: steps.creds.outputs.ready == 'true' && inputs.publish
+        uses: microsoft/store-submission@v1
+        with:
+          command: publish
+          product-id: ${{ vars.STORE_PRODUCT_ID }}
+
+      - name: Summary
+        if: always()
+        shell: pwsh
+        run: |
+          $lines = @(
+            "| Field | Value |",
+            "| --- | --- |",
+            "| Package | ``${{ steps.pkg.outputs.name }}`` |",
+            "| Version | ``${{ steps.pkg.outputs.version }}`` |",
+            "| Size | ${{ steps.pkg.outputs.size }} |",
+            "| Source run | [${{ steps.src.outputs.run-id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ steps.src.outputs.run-id }}) |"
+          )
+          if ("${{ steps.creds.outputs.ready }}" -ne "true") {
+            $lines += "| Store upload | skipped - Azure AD credentials not configured |"
+            $lines += ""
+            $lines += "See docs/MSIX-PUBLISHING.md for the one-time Partner Center setup."
+          } elseif ("${{ inputs.publish }}" -eq "true") {
+            $lines += "| Store upload | published to product ``${{ vars.STORE_PRODUCT_ID }}`` |"
+          } else {
+            $lines += "| Store upload | draft created - publish it from Partner Center |"
+          }
+          ($lines -join "`n") >> $env:GITHUB_STEP_SUMMARY

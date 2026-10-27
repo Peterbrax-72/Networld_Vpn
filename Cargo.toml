@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri", "crates/networld-core"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["Networld"]
+repository = "https://github.com/networld/networld-vpn"
+
+[profile.release]
+opt-level = "s"     # size-first; the hot paths are memcpy + syscalls anyway
+lto = true          # whole-program inlining across every crate
+codegen-units = 1
+panic = "abort"     # no unwind tables in the shipped binary
+strip = true
+
+[profile.dev]
+incremental = true

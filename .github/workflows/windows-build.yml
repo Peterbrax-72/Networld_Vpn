@@ -1,0 +1,213 @@
+name: Windows build (exe · MSIX · installer)
+
+# Every push to the repo produces all three downloadable artifacts:
+#   • NetworldVPN-portable-exe  — single self-contained .exe, no install
+#   • NetworldVPN-msix          — Microsoft Store / sideload package
+#   • NetworldVPN-installer     — NSIS setup .exe with shortcuts + uninstaller
+# Pushing a v* tag additionally drafts a GitHub release with all three attached.
+
+on:
+  push:
+    branches: [main, master, develop]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (4 parts, e.g. 1.0.3.0)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: win-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build all Windows artifacts
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}" -replace '^v', ''
+          } elseif ("${{ inputs.version }}") {
+            $v = "${{ inputs.version }}"
+          } else {
+            # untagged builds get the manifest version + the run number as revision
+            $v = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          }
+          $parts = @($v.Split('.'))
+          while ($parts.Count -lt 4) { $parts += "0" }
+          if ("${{ github.ref_type }}" -ne "tag" -and -not "${{ inputs.version }}") {
+            $parts[3] = "${{ github.run_number }}"
+          }
+          $full = ($parts[0..3] -join '.')
+          "version=$full"                >> $env:GITHUB_OUTPUT
+          "semver=$($parts[0..2] -join '.')" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version $full"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # `ring` (rustls + russh) assembles its x86-64 primitives with NASM on
+      # windows-msvc. Without this the build fails inside ring's build.rs.
+      - name: Install NASM
+        uses: ilammy/setup-nasm@v1
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Add the Windows SDK to PATH
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory |
+                 Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
+          "$($sdk.FullName)\x64" >> $env:GITHUB_PATH
+          Write-Host "Windows SDK $($sdk.Name)"
+
+      - name: Install front-end dependencies
+        run: npm ci
+
+      # package.json: "build": "tsc --noEmit && vite build"
+      - name: Type-check + build the front-end
+        run: npm run build
+
+      # Optional engine sidecars. -StoreSafe skips the GPL-3.0 binary so the
+      # MSIX stays Store-compliant; never fails the build.
+      - name: Fetch sidecars
+        continue-on-error: true
+        shell: pwsh
+        run: pwsh .\scripts\fetch-sidecars.ps1 -StoreSafe
+
+      # ----------------------------------------------------------- artifact 1
+      - name: Build portable executable (full feature set)
+        run: cargo build --release
+        working-directory: src-tauri
+
+      - name: Stage the portable exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts\portable | Out-Null
+          $exe = @("target\release\networld-vpn.exe", "src-tauri\target\release\networld-vpn.exe") |
+                 Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $exe) { throw "networld-vpn.exe was not produced" }
+          Copy-Item $exe "artifacts\portable\NetworldVPN.exe"
+          if (Test-Path src-tauri\resources\bin) {
+            Copy-Item src-tauri\resources\bin "artifacts\portable\resources\bin" -Recurse -Force
+          }
+          "Portable exe: {0:N1} MB" -f ((Get-Item "artifacts\portable\NetworldVPN.exe").Length / 1MB)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetworldVPN-${{ steps.ver.outputs.version }}-portable-exe
+          path: artifacts/portable/**
+          if-no-files-found: error
+          retention-days: 30
+
+      # ----------------------------------------------------------- artifact 2
+      - name: Build NSIS installer
+        run: npm run tauri -- build --bundles nsis
+        env:
+          TAURI_SKIP_DEVSERVER_CHECK: "true"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetworldVPN-${{ steps.ver.outputs.version }}-installer
+          path: |
+            target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      # ----------------------------------------------------------- artifact 3
+      - name: Build the Store binary (store feature)
+        run: cargo build --release --features store
+        working-directory: src-tauri
+
+      - name: Pack MSIX
+        shell: pwsh
+        env:
+          IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+          PUBLISHER_DISPLAY: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $params = @{
+            Version   = "${{ steps.ver.outputs.version }}"
+            Target    = "Store"
+            SkipBuild = $true
+          }
+          if ($env:IDENTITY_NAME)     { $params.IdentityName = $env:IDENTITY_NAME }
+          if ($env:PUBLISHER)         { $params.Publisher = $env:PUBLISHER }
+          if ($env:PUBLISHER_DISPLAY) { $params.PublisherDisplayName = $env:PUBLISHER_DISPLAY }
+          .\packaging\msix\Build-Msix.ps1 @params
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetworldVPN-${{ steps.ver.outputs.version }}-msix
+          path: packaging/msix/out/*.msix
+          if-no-files-found: error
+          retention-days: 30
+
+      # ------------------------------------------------- optional signed MSIX
+      - name: Sign a sideload MSIX
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.SIDELOAD_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.SIDELOAD_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_B64) {
+            Write-Host "::notice::SIDELOAD_PFX_BASE64 not set - skipping the signed sideload package."
+            exit 0
+          }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:PFX_B64))
+          $sec = ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force
+          .\packaging\msix\Build-Msix.ps1 -Version "${{ steps.ver.outputs.version }}" -Target Sideload `
+            -SkipBuild -CertPath "$env:RUNNER_TEMP\sign.pfx" -CertPassword $sec
+          Remove-Item "$env:RUNNER_TEMP\sign.pfx" -Force
+
+      # --------------------------------------------------------------- release
+      - name: Draft the GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Networld VPN ${{ steps.ver.outputs.semver }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/portable/NetworldVPN.exe
+            packaging/msix/out/*.msix
+            target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Summary
+        shell: pwsh
+        run: |
+          $rows = @()
+          $rows += "| Artifact | File |"
+          $rows += "| --- | --- |"
+          Get-ChildItem artifacts\portable\NetworldVPN.exe -ErrorAction SilentlyContinue |
+            ForEach-Object { $rows += "| Portable exe | $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB) |" }
+          Get-ChildItem packaging\msix\out\*.msix -ErrorAction SilentlyContinue |
+            ForEach-Object { $rows += "| MSIX | $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB) |" }
+          Get-ChildItem target\release\bundle\nsis\*.exe, src-tauri\target\release\bundle\nsis\*.exe -ErrorAction SilentlyContinue |
+            ForEach-Object { $rows += "| Installer | $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB) |" }
+          ($rows -join "`n") >> $env:GITHUB_STEP_SUMMARY

@@ -1,0 +1,42 @@
+version: 2
+
+updates:
+  # Front-end: Preact, Vite, TypeScript, the Tauri JS API and plugins.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    groups:
+      tauri:
+        patterns: ["@tauri-apps/*"]
+      build-tooling:
+        patterns: ["vite", "typescript", "@types/*"]
+    commit-message:
+      prefix: "deps"
+
+  # Rust: the core crate and the Tauri shell share one lockfile.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    groups:
+      tauri:
+        patterns: ["tauri", "tauri-*"]
+      crypto:
+        patterns: ["aes-gcm", "sha2", "rustls", "rustls-*", "webpki-roots", "russh", "russh-*"]
+    commit-message:
+      prefix: "deps"
+
+  # Keep the workflow actions themselves current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

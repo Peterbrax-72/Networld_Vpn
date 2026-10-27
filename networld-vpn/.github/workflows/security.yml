@@ -1,0 +1,143 @@
+name: Security audit
+
+# A VPN client is a security product, so dependency drift gets its own gate.
+# Runs weekly, whenever a lockfile moves, and on demand.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  push:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "package.json"
+      - "package-lock.json"
+      - ".cargo/audit.toml"
+      - ".github/workflows/security.yml"
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Prebuilt binary — `cargo install cargo-audit` costs ~4 minutes a run.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Accepted advisories (with reasons) live in .cargo/audit.toml; they are
+      # still printed, they just do not fail the run.
+      - name: Audit Cargo.lock
+        run: |
+          cargo audit --color never | tee audit.txt
+          {
+            echo "### cargo audit"
+            echo '```'
+            cat audit.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  npm:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # What ships in the app must be clean; build tooling is reported only.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit build tooling (report only)
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  licences:
+    name: Licence sweep (no GPL in the shipped tree)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          cache-targets: "false"
+
+      # The Store build must stay GPL-free: tun2socks (GPL-3.0) is fetched at
+      # package time by the non-Store variant only, and never linked in.
+      - name: Resolve crate licences
+        run: cargo metadata --format-version 1 --locked > metadata.json
+
+      - name: Fail on GPL-licensed crates
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          from collections import Counter
+
+          meta = json.loads(pathlib.Path("metadata.json").read_text())
+          workspace = {m.split()[0] for m in meta["workspace_members"]}
+
+          counts, gpl, unknown = Counter(), [], []
+          for pkg in meta["packages"]:
+              if pkg["name"] in workspace:
+                  continue
+              lic = pkg.get("license") or (
+                  f"file:{pkg['license_file']}" if pkg.get("license_file") else "UNKNOWN"
+              )
+              counts[lic] += 1
+              upper = lic.upper()
+              if "GPL" in upper and "LGPL" not in upper:
+                  gpl.append(f"{pkg['name']} {pkg['version']} — {lic}")
+              if lic == "UNKNOWN":
+                  unknown.append(f"{pkg['name']} {pkg['version']}")
+
+          summary = pathlib.Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a") as fh:
+              fh.write("### Crate licences\n\n| Licence | Crates |\n| --- | ---: |\n")
+              for lic, n in counts.most_common():
+                  fh.write(f"| `{lic}` | {n} |\n")
+              if unknown:
+                  fh.write(f"\nNo licence metadata: {', '.join(unknown)}\n")
+
+          for hit in gpl:
+              print(f"::error::GPL-licensed crate in the dependency tree: {hit}")
+          for u in unknown:
+              print(f"::warning::crate without licence metadata: {u}")
+
+          print(f"{sum(counts.values())} third-party crates, {len(counts)} distinct licences")
+          sys.exit(1 if gpl else 0)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crate-metadata
+          path: metadata.json
+          retention-days: 30

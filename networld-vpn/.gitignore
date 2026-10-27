@@ -1,0 +1,29 @@
+# front-end
+node_modules/
+dist/
+*.local
+.vite/
+
+# rust
+target/
+**/target/
+
+# msix build output
+packaging/msix/stage/
+packaging/msix/out/
+packaging/msix/*.pfx
+packaging/msix/*.cer
+packaging/msix/*.appxsym
+
+# engine sidecars are fetched, never committed
+src-tauri/resources/bin/*
+!src-tauri/resources/bin/README.md
+!src-tauri/resources/bin/.gitkeep
+
+# editors / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log

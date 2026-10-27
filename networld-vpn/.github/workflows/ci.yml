@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch/PR cancels the previous run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  core:
+    name: Rust core (fmt · clippy · tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      # networld-core is deliberately Tauri-free so it builds and tests on any
+      # platform. The Tauri shell is covered by windows-build.yml.
+      - name: Format check
+        run: cargo fmt -p networld-core -- --check
+
+      - name: Clippy
+        run: cargo clippy -p networld-core --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test -p networld-core --all-targets
+
+  frontend:
+    name: Front-end (typecheck · build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Use the local binary: bare `npx tsc` can resolve to the unrelated
+      # `tsc` package on the registry.
+      - name: Type-check
+        run: ./node_modules/.bin/tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Report bundle size
+        run: |
+          if [ ! -d dist/assets ]; then
+            echo "::error::npm run build produced no dist/assets"
+            exit 1
+          fi
+          {
+            echo "| Asset | Size |"
+            echo "| --- | ---: |"
+            find dist/assets -type f \( -name '*.js' -o -name '*.css' \) -printf '%f\t%s\n' |
+              sort -k2 -nr |
+              awk -F'\t' '{ printf "| `%s` | %.1f kB |\n", $1, $2/1000 }'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7
+
+  packaging:
+    name: Packaging assets (manifest ↔ Assets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow
+        run: python -m pip install --quiet pillow
+
+      # makeappx fails with 0x80080204 when the manifest names an image that is
+      # not in Assets\. Catch that here instead of 20 minutes into a Windows run.
+      - name: Every image named in AppxManifest.xml exists
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          root = pathlib.Path("packaging/msix")
+          manifest = (root / "AppxManifest.xml").read_text()
+          refs = sorted(set(re.findall(r'"(Assets[\\/][^"]+)"', manifest)))
+          missing = [r for r in refs if not (root / r.replace("\\", "/")).exists()]
+          print(f"{len(refs)} image(s) referenced, {len(missing)} missing")
+          for m in missing:
+              print(f"::error file=packaging/msix/AppxManifest.xml::missing asset {m}")
+          sys.exit(1 if missing else 0)
+          PY
+
+      - name: Icon set is complete and correctly sized
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          from PIL import Image
+
+          tauri = pathlib.Path("src-tauri/icons")
+          msix = pathlib.Path("packaging/msix/Assets")
+          problems = []
+
+          for need in ("icon.ico", "icon.png", "32x32.png", "128x128.png", "128x128@2x.png"):
+              if not (tauri / need).exists():
+                  problems.append(f"src-tauri/icons/{need} is missing")
+
+          count = len(list(msix.glob("*.png")))
+          if count < 39:
+              problems.append(f"only {count} MSIX assets found (expected 39)")
+
+          def expected(path: pathlib.Path):
+              """Pixel size the filename promises, or None when it promises nothing."""
+              name = path.name
+              scale = int(m.group(1)) / 100 if (m := re.search(r"scale-(\d+)", name)) else 1
+              if m := re.search(r"targetsize-(\d+)", name):
+                  return (int(m.group(1)), int(m.group(1)))
+              if m := re.match(r"(\d+)x(\d+)(@2x)?\.png$", name):
+                  w, h = int(m.group(1)), int(m.group(2))
+                  return (w * 2, h * 2) if m.group(3) else (w, h)
+              if m := re.search(r"(Square|Wide)(\d+)x(\d+)Logo", name):
+                  return (int(int(m.group(2)) * scale), int(int(m.group(3)) * scale))
+              if name.startswith("SplashScreen"):
+                  return (int(620 * scale), int(300 * scale))
+              if name.startswith("StoreLogo"):
+                  return (int(50 * scale), int(50 * scale))
+              if name.startswith("LockScreenLogo"):
+                  return (int(24 * scale), int(24 * scale))
+              return None
+
+          checked = 0
+          for p in sorted(list(tauri.glob("*.png")) + list(msix.glob("*.png"))):
+              im = Image.open(p)
+              checked += 1
+              want = expected(p)
+              if want and im.size != want:
+                  problems.append(f"{p} is {im.width}x{im.height}, expected {want[0]}x{want[1]}")
+              if im.convert("RGBA").getbbox() is None:
+                  problems.append(f"{p} is fully transparent")
+
+          for problem in problems:
+              print(f"::error::{problem}")
+          print(f"checked {checked} PNGs ({count} MSIX assets)")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: Icons can be regenerated from the masters
+        run: python3 scripts/make-icons.py
+
+  shell-scripts:
+    name: PowerShell scripts parse
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse every .ps1
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) {
+              $bad++
+              Write-Host "::error file=$($_.FullName)::$($errors[0].Message)"
+            } else {
+              Write-Host "ok  $($_.Name)"
+            }
+          }
+          if ($bad) { exit 1 }

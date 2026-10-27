@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Networld VPN",
+  "version": "1.0.0",
+  "identifier": "com.networld.vpn",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Networld VPN",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 980,
+        "minHeight": 660,
+        "resizable": true,
+        "center": true,
+        "decorations": true,
+        "theme": "Dark",
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/bin": "resources/bin"
+    },
+    "copyright": "© 2026 Networld",
+    "category": "Utility",
+    "shortDescription": "Multi-protocol tunnelling client",
+    "longDescription": "Networld VPN is a multi-protocol tunnelling client with SSH, SSH-over-TLS, HTTP payload injection, V2Ray/Xray and WireGuard engines, split tunnelling, a kill switch and live traffic statistics.",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "allowDowngrades": false
+    }
+  },
+  "plugins": {}
+}

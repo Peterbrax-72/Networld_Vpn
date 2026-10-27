@@ -1,0 +1,31 @@
+{
+  "name": "networld-vpn",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Networld VPN — NetMod-style multi-protocol tunneling client for Windows",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "msix": "powershell -ExecutionPolicy Bypass -File ./packaging/msix/Build-Msix.ps1",
+    "preview:html": "node scripts/build-preview.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.0.1",
+    "@tauri-apps/plugin-fs": "^2.0.3",
+    "jsqr": "^1.4.0",
+    "preact": "^10.24.3",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "@types/qrcode": "^1.5.6",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
