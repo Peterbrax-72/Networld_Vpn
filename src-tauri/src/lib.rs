@@ -19,6 +19,14 @@ pub const EVT_CONFIG: &str = "networld://config-changed";
 pub fn run() {
     networld_core::init();
 
+    // The release build has no console and aborts on panic, so a startup crash
+    // looks like "the window flashed and vanished". Leave a note to read.
+    std::panic::set_hook(Box::new(|info| {
+        let dir = Paths::discover().config_dir;
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join("crash.log"), format!("{info}\n"));
+    }));
+
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
@@ -41,7 +49,11 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            let manager = VpnManager::new(Paths::discover());
+            // `setup` runs on the main thread, outside any Tokio runtime, and the
+            // manager spawns its supervisor task while it is being built. Without
+            // a runtime context that panics ("no reactor running") and, with
+            // panic = "abort", the app dies right after the window opens.
+            let manager = tauri::async_runtime::block_on(async { VpnManager::new(Paths::discover()) });
             app.manage(AppState {
                 manager: manager.clone(),
             });

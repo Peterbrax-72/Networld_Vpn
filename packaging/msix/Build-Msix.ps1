@@ -72,7 +72,8 @@ if (-not $SkipBuild) {
 
     Write-Step "Building the Rust binary (release$(if ($Target -eq 'Store') { ', feature: store' }))"
     Push-Location (Join-Path $root "src-tauri")
-    $features = if ($Target -eq "Store") { @("--features", "store") } else { @() }
+    # custom-protocol embeds the UI in the exe; without it the app loads localhost:1420 and shows nothing.
+    $features = if ($Target -eq "Store") { @("--features", "store,custom-protocol") } else { @("--features", "custom-protocol") }
     cargo build --release @features
     Pop-Location
 }
@@ -114,8 +115,16 @@ if ($Publisher)           { $identity.Publisher = $Publisher }
 if ($PublisherDisplayName) {
     $xml.SelectSingleNode("//d:Properties/d:PublisherDisplayName", $ns).InnerText = $PublisherDisplayName
 }
-if ($identity.Name -like "*REPLACE-ME*" -or $identity.Publisher -like "*REPLACE-ME*") {
-    Write-Warning "Identity still contains REPLACE-ME. The package will build but Partner Center will reject it."
+$displayName = $xml.SelectSingleNode("//d:Properties/d:PublisherDisplayName", $ns).InnerText
+$placeholder = ($identity.Name -like "*REPLACE-ME*") -or ($identity.Publisher -like "*REPLACE-ME*") -or ($displayName -like "*REPLACE-ME*")
+if ($placeholder) {
+    if ($Target -eq "Store") {
+        throw "The manifest still contains REPLACE-ME (Identity Name, Publisher or PublisherDisplayName). Set the real Partner Center values first."
+    }
+    Write-Warning "The manifest still contains REPLACE-ME. Fine for a sideload test, but Partner Center would reject it."
+}
+if ($Target -eq "Store" -and $Version.Split('.')[3] -ne "0") {
+    throw "Store packages must have revision 0 (got $Version). Use a version like 1.0.5.0."
 }
 $xml.Save((Join-Path $stage "AppxManifest.xml"))
 Write-Host "  identity : $($identity.Name)"
