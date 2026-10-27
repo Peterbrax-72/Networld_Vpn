@@ -20,7 +20,7 @@
   IgnorableNamespaces="uap uap3 uap5 desktop rescap">
 
   <Identity
-    Name="1.Pinchezmedia254.NetworldVpn"
+    Name="Pinchezmedia254.NetworldVpn"
     Publisher="CN=7C4B5718-ABC5-44CF-90A7-C6509421DA7E"
     Version="1.0.0.0"
     ProcessorArchitecture="x64" />
