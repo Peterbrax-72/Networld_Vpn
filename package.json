@@ -19,7 +19,7 @@
     "@tauri-apps/plugin-dialog": "^2.0.1",
     "@tauri-apps/plugin-fs": "^2.0.3",
     "jsqr": "^1.4.0",
-    "preact": "^10.24.3",
+    "preact": "^11.0.2",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
