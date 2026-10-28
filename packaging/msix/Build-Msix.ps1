@@ -135,8 +135,12 @@ Write-Host "  version  : $($identity.Version)"
 Write-Step "Generating resources.pri"
 $makepri = Find-SdkTool "makepri.exe"
 Push-Location $stage
-& $makepri new /pr $stage /cf (Join-Path $root "packaging\msix\priconfig.xml") /of (Join-Path $stage "resources.pri") /o | Out-Null
+& $makepri new /pr $stage /cf (Join-Path $root "packaging\msix\priconfig.xml") /of (Join-Path $stage "resources.pri") /o
+$priExit = $LASTEXITCODE
 Pop-Location
+if ($priExit -ne 0 -or -not (Test-Path (Join-Path $stage "resources.pri"))) {
+    throw "makepri failed (exit $priExit) - the package would ship without resources.pri"
+}
 
 # ------------------------------------------------------------------ 5 pack
 Write-Step "Packing the MSIX"
