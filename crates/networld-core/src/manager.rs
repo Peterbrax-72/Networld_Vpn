@@ -227,13 +227,16 @@ impl VpnManager {
     async fn set_state(&self, state: ConnectionState, message: impl Into<String>) {
         let snapshot = {
             let mut st = self.status.write().await;
+            let was_connected = st.state == ConnectionState::Connected;
             st.state = state;
             st.message = message.into();
-            if state == ConnectionState::Connected {
+            if state == ConnectionState::Connected && !was_connected {
                 st.connected_since_ms = Some(crate::logging::now_ms());
             }
-            if state == ConnectionState::Disconnected {
+            if state != ConnectionState::Connected {
                 st.connected_since_ms = None;
+            }
+            if state == ConnectionState::Disconnected {
                 st.detail.clear();
                 st.socks_port = None;
                 st.http_port = None;
@@ -569,30 +572,63 @@ impl VpnManager {
     }
 
     async fn reconnect_loop(self: Arc<Self>, settings: Settings) {
-        let profile_id = self.status.read().await.profile_id.clone();
-        for attempt in 1..=settings.max_reconnect_attempts.max(1) {
-            {
-                let mut st = self.status.write().await;
-                st.reconnect_attempt = attempt;
-            }
-            self.set_state(
-                ConnectionState::Reconnecting,
-                format!("Reconnecting (attempt {attempt})"),
-            )
-            .await;
-            tokio::time::sleep(std::time::Duration::from_secs(
-                settings.reconnect_delay_secs.max(1),
-            ))
-            .await;
-            match self.connect(profile_id.clone()).await {
-                Ok(_) => {
-                    self.logs.info("manager", "Reconnected successfully");
-                    return;
+        let mut profile_id = self.status.read().await.profile_id.clone();
+        let switching = settings.auto_switch_config;
+        let per_config = if switching {
+            SWITCH_AFTER_ATTEMPTS
+        } else {
+            settings.max_reconnect_attempts.max(1)
+        };
+        let mut tried: Vec<String> = profile_id.iter().cloned().collect();
+        loop {
+            for attempt in 1..=per_config {
+                {
+                    let mut st = self.status.write().await;
+                    st.reconnect_attempt = attempt;
                 }
-                Err(e) => self.logs.warn(
-                    "manager",
-                    format!("Reconnect attempt {attempt} failed: {e}"),
-                ),
+                self.set_state(
+                    ConnectionState::Reconnecting,
+                    format!("Reconnecting (attempt {attempt})"),
+                )
+                .await;
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    settings.reconnect_delay_secs.max(1),
+                ))
+                .await;
+                match self.connect(profile_id.clone()).await {
+                    Ok(_) => {
+                        self.logs.info("manager", "Reconnected successfully");
+                        return;
+                    }
+                    Err(e) => self.logs.warn(
+                        "manager",
+                        format!("Reconnect attempt {attempt} failed: {e}"),
+                    ),
+                }
+            }
+            if !switching {
+                break;
+            }
+            let ids: Vec<String> = self
+                .config
+                .read()
+                .await
+                .profiles
+                .iter()
+                .map(|p| p.id.clone())
+                .collect();
+            let current = profile_id.clone().unwrap_or_default();
+            match next_profile_id(&ids, &current, &tried) {
+                Some(next) => {
+                    self.logs
+                        .info("manager", "Config keeps failing, switching to the next one");
+                    tried.push(next.clone());
+                    profile_id = Some(next);
+                }
+                None => {
+                    self.logs.warn("manager", "Tried every saved config");
+                    break;
+                }
             }
         }
         self.disconnect_inner(true).await;
@@ -634,6 +670,18 @@ impl VpnManager {
     }
 }
 
+/// Failed attempts on one config before moving on (when auto-switch is on).
+const SWITCH_AFTER_ATTEMPTS: u32 = 3;
+
+/// Next config after `current` (cyclic) that has not been tried yet.
+fn next_profile_id(ids: &[String], current: &str, tried: &[String]) -> Option<String> {
+    let start = ids.iter().position(|i| i == current).map_or(0, |p| p + 1);
+    (0..ids.len())
+        .map(|k| &ids[(start + k) % ids.len()])
+        .find(|id| !tried.contains(id))
+        .cloned()
+}
+
 #[cfg(windows)]
 fn is_elevated() -> bool {
     // Best-effort: writing to a protected path is the cheapest reliable probe.
@@ -643,4 +691,25 @@ fn is_elevated() -> bool {
 #[cfg(not(windows))]
 fn is_elevated() -> bool {
     false
+}
+
+#[cfg(test)]
+mod switch_tests {
+    use super::next_profile_id;
+
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn walks_cyclically_and_stops_when_exhausted() {
+        let ids = v(&["a", "b", "c"]);
+        assert_eq!(next_profile_id(&ids, "b", &v(&["b"])), Some("c".into()));
+        assert_eq!(
+            next_profile_id(&ids, "c", &v(&["b", "c"])),
+            Some("a".into())
+        );
+        assert_eq!(next_profile_id(&ids, "a", &v(&["a", "b", "c"])), None);
+        assert_eq!(next_profile_id(&v(&["a"]), "a", &v(&["a"])), None);
+    }
 }

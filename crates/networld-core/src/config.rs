@@ -445,6 +445,8 @@ pub struct Settings {
     pub auto_reconnect: bool,
     pub max_reconnect_attempts: u32,
     pub reconnect_delay_secs: u64,
+    /// After 3 failed reconnect attempts, move on to the next saved config.
+    pub auto_switch_config: bool,
     pub tunnel_mode: TunnelMode,
     pub socks_port: u16,
     pub http_port: u16,
@@ -478,6 +480,7 @@ impl Default for Settings {
             auto_reconnect: true,
             max_reconnect_attempts: 10,
             reconnect_delay_secs: 5,
+            auto_switch_config: false,
             tunnel_mode: TunnelMode::Proxy,
             socks_port: 1080,
             http_port: 8086,

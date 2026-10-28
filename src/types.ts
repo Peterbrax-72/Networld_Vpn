@@ -133,6 +133,7 @@ export interface Settings {
   autoReconnect: boolean;
   maxReconnectAttempts: number;
   reconnectDelaySecs: number;
+  autoSwitchConfig: boolean;
   tunnelMode: TunnelMode;
   socksPort: number;
   httpPort: number;

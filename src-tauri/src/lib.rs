@@ -53,7 +53,8 @@ pub fn run() {
             // manager spawns its supervisor task while it is being built. Without
             // a runtime context that panics ("no reactor running") and, with
             // panic = "abort", the app dies right after the window opens.
-            let manager = tauri::async_runtime::block_on(async { VpnManager::new(Paths::discover()) });
+            let manager =
+                tauri::async_runtime::block_on(async { VpnManager::new(Paths::discover()) });
             app.manage(AppState {
                 manager: manager.clone(),
             });

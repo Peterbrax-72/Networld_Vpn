@@ -85,6 +85,7 @@ const defaultSettings: Settings = {
   autoReconnect: true,
   maxReconnectAttempts: 10,
   reconnectDelaySecs: 5,
+  autoSwitchConfig: false,
   tunnelMode: "proxy",
   socksPort: 1080,
   httpPort: 8086,
@@ -190,7 +191,7 @@ const demoProfiles: ServerProfile[] =
         Object.assign(blankSsh("Demo SSH", "ssh.example.com", 443), {
           username: "demo",
           password: "demo-password",
-          mode: "tls",
+          mode: "ssl",
           sni: "cdn.example.com",
         }),
         blankXray("Demo VLESS", "vless", "vless.example.com", 443),

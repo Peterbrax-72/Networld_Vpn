@@ -162,3 +162,7 @@ Sandboxed MSIX cannot install drivers or services, so the Store build defaults
 to proxy-only: `cargo build --features store` makes `app_info` report
 WireGuard/TUN as unavailable, and `fetch-sidecars.ps1 -StoreSafe` skips the
 GPL-3.0 `tun2socks` binary.
+
+## Auto-switch config (optional, default OFF)
+Settings → Security → "Switch config when one fails" (`autoSwitchConfig`). Requires Auto-reconnect.
+After 3 failed reconnect attempts on a config, the next saved config is tried (cyclic, each config gets 3 attempts) until one connects; stops with an error when all were tried. Off = old behaviour (Max attempts on the same config).

@@ -876,3 +876,131 @@ h1 { font-weight: 600; }
 .lock-fieldset:disabled .nm-field input { letter-spacing: 0.12em; }
 .lock-banner { display: flex; align-items: center; gap: 8px; color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); }
 .cfg-lock { color: var(--muted); vertical-align: -2px; margin-right: 4px; }
+
+/* =====================================================================
+   Compact popup layout (NetMod-style): the window opens at about 460 x 700,
+   so below 700px the side rail becomes a bottom bar and everything stacks.
+   ===================================================================== */
+
+@media (max-width: 700px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 62px; }
+  .content { padding: 16px 14px 20px; grid-row: 1; }
+
+  .rail {
+    grid-row: 2; flex-direction: row; justify-content: space-around; align-items: stretch;
+    padding: 6px 8px; gap: 4px;
+    border-right: none; border-top: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .rail-brand, .rail-foot { display: none; }
+  .rail nav { flex-direction: row; flex: 1; justify-content: space-around; gap: 4px; }
+  .rail-item { flex: 1; width: auto; height: 100%; border-radius: 12px; }
+  .rail-item.active::before { left: 30%; right: 30%; top: -7px; width: auto; height: 3px; border-radius: 0 0 3px 3px; }
+
+  .toasts { left: 12px; right: 12px; bottom: 74px; }
+  .toast { max-width: none; }
+
+  .page { gap: 12px; }
+  h1 { font-size: 19px; }
+  .home-title h1 { font-size: 20px; }
+  .home-head { gap: 8px; }
+
+  /* status panel: orb + text on the first row, speeds below */
+  .hero { flex-wrap: wrap; padding: 12px 14px; gap: 10px 12px; }
+  .hero-speed { display: flex; width: 100%; gap: 8px; order: 3; }
+  .hero-stat { flex: 1; min-width: 0; }
+  .hero-title { font-size: 15.5px; }
+
+  .cfg-list { padding-bottom: 120px; }
+  .cfg-card { padding: 11px 12px; gap: 11px; }
+  .cfg-chip { width: 36px; height: 36px; }
+  .cfg-endpoint { font-size: 14px; }
+  .cfg-acts { opacity: 1; }
+
+  .fab-wrap { right: 16px; bottom: 74px; }
+  .fab { width: 60px; height: 60px; }
+
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .page-head { flex-wrap: wrap; }
+  .search { min-width: 0; }
+
+  .modal, .modal.wide, .sheet, .confirm { width: 100%; max-height: 92vh; }
+  .modal-backdrop, .sheet-backdrop { padding: 10px; }
+  .nm-row { flex-wrap: wrap; }
+
+  .log-line { grid-template-columns: 78px 40px minmax(0, 1fr); gap: 6px; font-size: 11px; }
+  .field-hint { margin-bottom: 6px; }
+  .log-line .tag-cell { display: none; }
+  .log-box { min-height: 260px; }
+  .usage-col { min-width: 34px; }
+}
+
+/* =====================================================================
+   Start button: idle bolt animation, then a drawn ring once connected
+   ===================================================================== */
+
+.fab { overflow: visible; }
+.fab .fab-bolt { display: grid; place-items: center; position: relative; z-index: 1; }
+.fab .fab-bolt .icon { fill: currentColor; stroke: none; }
+
+/* stopped: the thunder icon breathes and flickers so the button invites a tap */
+.fab-wrap:not(.on):not(.working):not(.off) .fab-bolt { animation: bolt-idle 2.6s ease-in-out infinite; }
+.fab-wrap:not(.on):not(.working):not(.off) .fab {
+  animation: fab-glow 2.6s ease-in-out infinite;
+}
+@keyframes bolt-idle {
+  0%, 38%, 100% { transform: scale(1) rotate(0); filter: none; }
+  44% { transform: scale(1.22) rotate(-7deg); filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.95)); }
+  50% { transform: scale(0.94) rotate(4deg); }
+  56% { transform: scale(1.14) rotate(-3deg); filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8)); }
+  64% { transform: scale(1) rotate(0); filter: none; }
+}
+@keyframes fab-glow {
+  0%, 100% { box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 38%, transparent); }
+  50% { box-shadow: 0 12px 38px color-mix(in srgb, var(--accent) 66%, transparent), 0 0 0 7px color-mix(in srgb, var(--accent) 14%, transparent); }
+}
+
+/* the ring */
+.fab-ring { position: absolute; inset: -9px; width: calc(100% + 18px); height: calc(100% + 18px); transform: rotate(-90deg); pointer-events: none; overflow: visible; }
+.fab-ring circle { fill: none; stroke-width: 2.6; stroke-linecap: round; }
+.fab-ring-track { stroke: transparent; }
+.fab-ring-draw { stroke: var(--ok); stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ok) 70%, transparent)); }
+
+/* connecting: a short arc runs around the button */
+.fab-wrap.working .fab-ring-draw { stroke: var(--warn); stroke-dasharray: 22 78; stroke-dashoffset: 0; opacity: 1; transform-origin: 50% 50%; animation: ring-spin 1.1s linear infinite; }
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+
+/* connected: bolt pops, then the circle is drawn and stays */
+.fab-wrap.on .fab { animation: none; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04121f;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--ok) 38%, transparent); }
+.fab-wrap.on .fab-bolt { animation: bolt-pop 0.55s cubic-bezier(.2, .9, .3, 1.4) 1; }
+.fab-wrap.on .fab-ring-draw { opacity: 1; animation: ring-draw 0.9s ease-out 0.35s forwards; }
+@keyframes bolt-pop {
+  0% { transform: scale(0.6) rotate(-14deg); }
+  60% { transform: scale(1.3) rotate(6deg); filter: drop-shadow(0 0 9px rgba(255, 255, 255, 0.95)); }
+  100% { transform: scale(1) rotate(0); filter: none; }
+}
+@keyframes ring-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.fab-wrap.on .fab-label { color: var(--ok); }
+.fab-wrap.working .fab-label { color: var(--warn); }
+.fab.working { animation: none; }
+.fab-wrap.on .fab:hover:not(:disabled) { box-shadow: 0 12px 30px color-mix(in srgb, var(--err) 45%, transparent); }
+
+/* =====================================================================
+   Scrolling: every page scrolls inside the window; nothing is clipped
+   ===================================================================== */
+
+.app { grid-template-rows: minmax(0, 1fr); }
+.content { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.home { height: auto; min-height: 100%; }
+.cfg-list { overflow: visible; flex: none; padding-bottom: 130px; }
+.logs-page { height: auto; min-height: 100%; }
+
+@media (max-width: 700px) {
+  .app { grid-template-rows: minmax(0, 1fr) 62px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-wrap .fab-bolt, .fab-wrap .fab { animation: none !important; }
+  .fab-wrap.on .fab-ring-draw { stroke-dashoffset: 0; }
+}

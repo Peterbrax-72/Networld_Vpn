@@ -30,6 +30,3 @@ Thumbs.db
 
 # temp output of scripts/build-preview.mjs (UI-Preview.html itself is committed)
 .preview-tmp/
-
-.cargo/*
-!.cargo/audit.toml
