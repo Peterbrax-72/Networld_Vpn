@@ -99,8 +99,9 @@ jobs:
           Write-Host "Version  : $($identity.Version)"
 
           $fail = @()
-          if ($identity.Name -like "*REPLACE-ME*" -or $identity.Publisher -like "*REPLACE-ME*") {
-            $fail += "the manifest still carries a REPLACE-ME placeholder"
+          $display = $m.Package.Properties.PublisherDisplayName
+          if ($identity.Name -like "*REPLACE-ME*" -or $identity.Publisher -like "*REPLACE-ME*" -or $display -like "*REPLACE-ME*") {
+            $fail += "the manifest still carries a REPLACE-ME placeholder (Identity, Publisher or PublisherDisplayName)"
           }
           if ($identity.Version.Split('.')[3] -ne "0") {
             $fail += "Store packages must end in revision 0, got $($identity.Version)"

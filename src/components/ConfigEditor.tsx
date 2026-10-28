@@ -206,8 +206,10 @@ export default function ConfigEditor({
     }
   };
 
+  // Tapping outside the box does nothing on purpose: the editor closes only with
+  // the X (discard) or the tick (save).
   return (
-    <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="sheet-backdrop">
       <section className="sheet" role="dialog" aria-label={`${isNew ? "Add" : "Edit"} config`}>
         <header className="sheet-bar">
           <span className="sheet-kind">{titleOf(proto)} settings</span>

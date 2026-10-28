@@ -84,6 +84,13 @@ export default function SettingsPage() {
             checked={s.autoReconnect}
             onChange={(v) => patchSettings({ autoReconnect: v })}
           />
+          <Toggle
+            label="Switch config when one fails"
+            hint="After 3 failed reconnect attempts, try the next saved config until one stays connected"
+            disabled={!s.autoReconnect}
+            checked={s.autoSwitchConfig && s.autoReconnect}
+            onChange={(v) => patchSettings({ autoSwitchConfig: v })}
+          />
           <div className="grid-2">
             <Field label="Max attempts">
               <input

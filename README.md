@@ -237,4 +237,3 @@ row to `capability_matrix()`. See [docs/ENGINES.md](docs/ENGINES.md).
 
 MIT — see [LICENSE](LICENSE). Bundled sidecars keep their own licences; see
 [src-tauri/resources/bin/README.md](src-tauri/resources/bin/README.md).
-"# NetworldVpn" 

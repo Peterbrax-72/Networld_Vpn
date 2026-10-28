@@ -62,14 +62,24 @@ export default function Home() {
   const go = (page: string) =>
     window.dispatchEvent(new CustomEvent("networld:navigate", { detail: page }));
 
+  // Uptime starts counting the moment the state becomes Connected and ticks every second.
+  const [now, setNow] = useState(Date.now());
+  const since = connected ? status?.connectedSinceMs ?? null : null;
+  useEffect(() => {
+    if (!connected) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [connected, since]);
+
   const subtitle = useMemo(() => {
     if (connected) {
-      const up = status?.connectedSinceMs ? (Date.now() - status.connectedSinceMs) / 1000 : 0;
-      return `Connected · ${formatDuration(status?.stats.uptimeSecs || up)}`;
+      const up = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
+      return `Connected · ${formatDuration(up)}`;
     }
     if (working) return status?.message || "Working…";
     return `${profiles.length} config${profiles.length === 1 ? "" : "s"}`;
-  }, [connected, working, status, profiles.length]);
+  }, [connected, working, status, since, now, profiles.length]);
 
   return (
     <div className="home">
@@ -267,18 +277,26 @@ export default function Home() {
       </div>
 
       <div
-        className={`fab-wrap ${connected ? "on" : ""} ${profiles.length ? "" : "off"}`}
+        className={`fab-wrap ${connected ? "on" : ""} ${working ? "working" : ""} ${profiles.length ? "" : "off"}`}
       >
         <button
           className={`fab ${connected ? "on" : ""} ${working ? "working" : ""}`}
-          title={connected ? "Disconnect" : "Connect"}
+          title={connected || working ? "Disconnect" : "Connect"}
+          aria-label={connected || working ? "Disconnect" : "Connect"}
           disabled={!profiles.length}
           onClick={() => (connected || working ? void disconnect() : void connect(activeId))}
         >
-          <Icon name={connected || working ? "stop" : "play"} size={connected || working ? 20 : 24} />
+          {/* the ring is drawn around the button once the tunnel is up */}
+          <svg className="fab-ring" viewBox="0 0 80 80" aria-hidden="true">
+            <circle className="fab-ring-track" cx="40" cy="40" r="37" />
+            <circle className="fab-ring-draw" cx="40" cy="40" r="37" pathLength="100" />
+          </svg>
+          <span className="fab-bolt">
+            <Icon name="bolt" size={connected ? 28 : 26} />
+          </span>
         </button>
         <span className="fab-label">
-          {working ? "WORKING" : connected ? "STOP" : "START"}
+          {working ? "CONNECTING" : connected ? "CONNECTED" : "START"}
         </span>
       </div>
 
