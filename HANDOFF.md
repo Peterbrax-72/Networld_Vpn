@@ -189,3 +189,6 @@ packaging/android/MainActivity.kt (copied over the generated one by patch-androi
 
 ## Connect fix: SSL+proxy configs & log timestamps
 ProxyTls now picks the order from the proxy port: plain-HTTP proxy ports (80/8080/3128...) = payload then TLS; anything else (443, CDN edges) = TLS to the proxy first (SNI=bug host) then payload inside. On failure the other order is tried automatically. LogEntry serialises as camelCase (fixes 'Invalid Date.NaN' in Logs).
+
+## Config sheet scrolling
+styles.css end: .sheet capped to the viewport and .sheet-body (a fieldset) given min-height:0 so it scrolls.
