@@ -483,6 +483,7 @@ const appInfo: AppInfo = {
   coreVersion: "1.0.0",
   platform: "preview",
   storeBuild: true,
+  mobileBuild: typeof location !== "undefined" && /[?&]mobile\b/.test(location.search),
   configPath: "%LOCALAPPDATA%\\Networld VPN\\config.json",
   binPath: "<install>\\resources\\bin",
   engines: [

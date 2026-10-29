@@ -31,6 +31,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 
+# Android: device-wide VPN = Android VpnService (Kotlin) + tun2proxy, which turns
+# the TUN packets into SOCKS5 connections to Networld's local proxy.
+[target.'cfg(target_os = "android")'.dependencies]
+tun2proxy = { version = "0.8", default-features = false }
+log = "0.4"
+
 [features]
 # Enabled for the Microsoft Store / MSIX build: hides engines that need
 # administrator rights or a helper service (WireGuard, TUN mode).

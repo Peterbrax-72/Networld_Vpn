@@ -166,3 +166,13 @@ GPL-3.0 `tun2socks` binary.
 ## Auto-switch config (optional, default OFF)
 Settings → Security → "Switch config when one fails" (`autoSwitchConfig`). Requires Auto-reconnect.
 After 3 failed reconnect attempts on a config, the next saved config is tried (cyclic, each config gets 3 attempts) until one connects; stops with an error when all were tried. Off = old behaviour (Max attempts on the same config).
+
+## Android APK (proxy mode)
+Workflow `.github/workflows/android-build.yml` (tag v* or manual run) builds a signed `NetworldVPN.apk` (artifact `NetworldVPN-android`, also attached to tag releases).
+Optional secrets for a stable signing key: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS.
+Scope: SSH / SSL / payload engines. WireGuard/Xray/TUN/kill switch are desktop-only.
+
+### Android device-wide VPN (NetMod-style)
+On Connected, `src-tauri/src/android_vpn.rs` asks the Kotlin `VpnPlugin` (packaging/android/*.kt, copied into the generated project by `patch-android-project.py` in CI) to start `NetworldVpnService` (Android VpnService, 'key' icon, consent dialog on first run). Its TUN fd goes to Rust `tun_bridge.rs` (tun2proxy crate, virtual DNS) which forwards all TCP/DNS to the local SOCKS5 port. The app itself is excluded from the VPN (no loop); IPv6 is routed in and dropped (no leak); the tunnel stays up during auto-reconnect and stops on Disconnected/Error. UDP other than DNS is dropped (SSH SOCKS has no UDP).
+UNVERIFIED on a device: Android code was never compiled in the sandbox (tun_bridge was host-checked only). Expect small CI fixes on first run.
+Android shell code could not be compiled in the sandbox (no Android SDK/NDK) - first CI run may need small fixes.

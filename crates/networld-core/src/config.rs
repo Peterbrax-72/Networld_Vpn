@@ -625,6 +625,19 @@ impl Paths {
         }
     }
 
+    /// Paths rooted at an explicit directory (Android hands the app its own
+    /// private data dir; `dirs` has no answer there).
+    pub fn at(base: PathBuf) -> Self {
+        let bin_dir = base.join("bin");
+        Self {
+            config_file: base.join("config.json"),
+            logs_dir: base.join("logs"),
+            runtime_dir: base.join("runtime"),
+            config_dir: base,
+            bin_dir,
+        }
+    }
+
     pub fn ensure(&self) -> Result<()> {
         std::fs::create_dir_all(&self.config_dir)?;
         std::fs::create_dir_all(&self.logs_dir)?;
