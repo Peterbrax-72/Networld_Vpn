@@ -52,6 +52,7 @@ impl EngineHandle for WireguardHandle {
         {
             let _ = tokio::process::Command::new("wireguard.exe")
                 .args(["/uninstalltunnelservice", &self.tunnel_name])
+                .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: never flash a console
                 .output()
                 .await;
         }
@@ -121,6 +122,7 @@ impl TunnelEngine for WireguardEngine {
         {
             let out = tokio::process::Command::new("wireguard.exe")
                 .args(["/installtunnelservice", &conf_path.display().to_string()])
+                .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: never flash a console
                 .output()
                 .await
                 .map_err(|e| CoreError::ElevationRequired(format!("wireguard.exe: {e}")))?;

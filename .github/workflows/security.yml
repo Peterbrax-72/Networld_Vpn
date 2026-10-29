@@ -94,7 +94,25 @@ jobs:
       # The Store build must stay GPL-free: tun2socks (GPL-3.0) is fetched at
       # package time by the non-Store variant only, and never linked in.
       - name: Resolve crate licences
-        run: cargo metadata --format-version 1 --locked > metadata.json
+        run: |
+          # The Store / Windows tree is the gated one. Android-only crates
+          # (tun2proxy and friends) are checked separately below.
+          cargo metadata --format-version 1 --locked --filter-platform x86_64-pc-windows-msvc > metadata.json
+          cargo metadata --format-version 1 --locked --filter-platform aarch64-linux-android > metadata-android.json
+
+      # Android sideload APK only: report (do not fail) GPL crates so the
+      # licence consequence is visible before any Play Store release.
+      - name: Report GPL crates in the Android tree
+        run: |
+          python - <<'PY'
+          import json
+          m = json.load(open("metadata-android.json"))
+          ws = {x.split()[0] for x in m["workspace_members"]}
+          for p in m["packages"]:
+              lic = (p.get("license") or "").upper()
+              if p["name"] not in ws and "GPL" in lic and "LGPL" not in lic:
+                  print(f"::warning::Android build links {p['name']} {p['version']} ({p['license']}) - GPL terms apply to the APK")
+          PY
 
       - name: Fail on GPL-licensed crates
         run: |
@@ -139,5 +157,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: crate-metadata
-          path: metadata.json
+          path: |
+            metadata.json
+            metadata-android.json
           retention-days: 30
