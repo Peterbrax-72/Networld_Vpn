@@ -176,3 +176,7 @@ Scope: SSH / SSL / payload engines. WireGuard/Xray/TUN/kill switch are desktop-o
 On Connected, `src-tauri/src/android_vpn.rs` asks the Kotlin `VpnPlugin` (packaging/android/*.kt, copied into the generated project by `patch-android-project.py` in CI) to start `NetworldVpnService` (Android VpnService, 'key' icon, consent dialog on first run). Its TUN fd goes to Rust `tun_bridge.rs` (tun2proxy crate, virtual DNS) which forwards all TCP/DNS to the local SOCKS5 port. The app itself is excluded from the VPN (no loop); IPv6 is routed in and dropped (no leak); the tunnel stays up during auto-reconnect and stops on Disconnected/Error. UDP other than DNS is dropped (SSH SOCKS has no UDP).
 UNVERIFIED on a device: Android code was never compiled in the sandbox (tun_bridge was host-checked only). Expect small CI fixes on first run.
 Android shell code could not be compiled in the sandbox (no Android SDK/NDK) - first CI run may need small fixes.
+
+## Security audit workflow
+Was failing because `.cargo/audit.toml` lacked `quiet` under `[output]` (new cargo-audit) and crypto-bigint 0.7.5 had an advisory (updated to 0.7.10 in Cargo.lock). Warnings (unmaintained GTK/zbus etc.) no longer fail the run. GPL gate now checks the Windows tree only.
+LICENCE NOTE: the Android APK links `socks5-impl` (GPL-3.0-or-later, via tun2proxy). Fine for testing/sideloading with source available; resolve (replace the crate or comply with GPL) before any Play Store release. Windows/Store tree is GPL-free.

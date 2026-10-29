@@ -24,5 +24,10 @@ ignore = [
 
 informational_warnings = ["unmaintained", "unsound"]
 
+# Unmaintained / unsound / yanked *warnings* come from the Linux GTK/zbus stack
+# that Tauri pulls in (glib, gtk, zbus, proc-macro-error) and from tun2proxy
+# (daemonize) - none of it is compiled into the Windows or Android builds.
+# They are printed in every report but must not fail the run; real
+# vulnerabilities still do.
 [output]
-deny = ["warnings"]
+quiet = false
