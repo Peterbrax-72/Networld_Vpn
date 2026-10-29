@@ -25,7 +25,7 @@ import type { ServerProfile } from "../types";
 const BUSY = new Set(["resolving", "connecting", "authenticating", "starting-proxies", "reconnecting"]);
 
 export default function Home() {
-  const { profiles, config, status, connect, disconnect, deleteProfile, selectProfile, toast, busy } =
+  const { profiles, config, status, connect, disconnect, deleteProfile, selectProfile, toast, busy, info } =
     useStore();
 
   const [editing, setEditing] = useState<ServerProfile | null>(null);
@@ -111,7 +111,7 @@ export default function Home() {
 
         {menu === "proto" && (
           <div className="menu proto-menu">
-            {PROTOCOLS.map((x) => (
+            {PROTOCOLS.filter((x) => !info?.mobileBuild || x.id === "ssh").map((x) => (
               <button key={x.id} className="menu-item" onClick={() => add(x.id)}>
                 <span className="menu-label">
                   {x.label}
@@ -152,7 +152,8 @@ export default function Home() {
             >
               <Icon name="list" size={15} /> Logs
             </button>
-            <button
+            {!info?.mobileBuild && (
+              <button
               className="menu-item plain"
               onClick={() => {
                 setMenu(null);
@@ -160,7 +161,8 @@ export default function Home() {
               }}
             >
               <Icon name="folder" size={15} /> Open config folder
-            </button>
+              </button>
+            )}
             <button
               className="menu-item plain"
               onClick={() => {

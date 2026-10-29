@@ -237,6 +237,7 @@ export interface AppInfo {
   coreVersion: string;
   platform: string;
   storeBuild: boolean;
+  mobileBuild: boolean;
   configPath: string;
   binPath: string;
   engines: EngineInfo[];

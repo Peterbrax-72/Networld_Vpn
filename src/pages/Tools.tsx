@@ -87,14 +87,18 @@ export default function Tools() {
               <span>HTTP proxy</span>
               <strong>{status?.httpPort ? `127.0.0.1:${status.httpPort}` : "—"}</strong>
             </div>
-            <div>
-              <span>Kill switch</span>
-              <strong>{status?.killSwitch ? "engaged" : "off"}</strong>
-            </div>
-            <div>
-              <span>System proxy</span>
-              <strong>{status?.systemProxy ? "applied" : "off"}</strong>
-            </div>
+            {!info?.mobileBuild && (
+              <>
+                <div>
+                  <span>Kill switch</span>
+                  <strong>{status?.killSwitch ? "engaged" : "off"}</strong>
+                </div>
+                <div>
+                  <span>System proxy</span>
+                  <strong>{status?.systemProxy ? "applied" : "off"}</strong>
+                </div>
+              </>
+            )}
           </div>
           {status?.httpPort && (
             <div className="row gap mt">
@@ -137,7 +141,7 @@ export default function Tools() {
         )}
       </Card>
 
-      {info && (
+      {info && !info.mobileBuild && (
         <Card title="Engine availability">
           <ul className="list">
             {info.engines.map((e) => (

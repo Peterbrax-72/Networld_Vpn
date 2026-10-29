@@ -33,7 +33,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -48,8 +50,13 @@
     "shortDescription": "Multi-protocol tunnelling client",
     "longDescription": "Networld VPN is a multi-protocol tunnelling client with SSH, SSH-over-TLS, HTTP payload injection, V2Ray/Xray and WireGuard engines, split tunnelling, a kill switch and live traffic statistics.",
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "allowDowngrades": false
+    },
+    "android": {
+      "minSdkVersion": 24
     }
   },
   "plugins": {}

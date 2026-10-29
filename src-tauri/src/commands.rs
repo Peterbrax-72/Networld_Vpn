@@ -34,6 +34,7 @@ pub struct AppInfo {
     pub core_version: String,
     pub platform: String,
     pub store_build: bool,
+    pub mobile_build: bool,
     pub config_path: String,
     pub bin_path: String,
     pub engines: Vec<EngineInfo>,
@@ -55,10 +56,13 @@ pub struct EngineInfo {
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     let store_build = cfg!(feature = "store");
+    let mobile_build = cfg!(target_os = "android");
     let engines = engines::capability_matrix()
         .into_iter()
         .map(|(kind, caps)| {
             let blocked_by_store = store_build && !caps.store_safe;
+            // Android: no helper binaries, no admin/TUN engines.
+            let blocked_by_mobile = mobile_build && (!caps.store_safe || caps.sidecar.is_some());
             let missing_sidecar = caps
                 .sidecar
                 .map(|b| state.manager.paths.binary(b).is_err())
@@ -70,8 +74,10 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
                 tun_mode: caps.tun_mode,
                 requires_elevation: caps.requires_elevation,
                 sidecar: caps.sidecar.map(|s| s.to_string()),
-                available: !blocked_by_store && !missing_sidecar,
-                reason: if blocked_by_store {
+                available: !blocked_by_store && !blocked_by_mobile && !missing_sidecar,
+                reason: if blocked_by_mobile {
+                    "Not available on Android yet".into()
+                } else if blocked_by_store {
                     "Not available in the Microsoft Store build (needs administrator rights)".into()
                 } else if missing_sidecar {
                     format!(
@@ -91,6 +97,7 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
         core_version: networld_core::VERSION.into(),
         platform: std::env::consts::OS.into(),
         store_build,
+        mobile_build,
         config_path: state.manager.paths.config_file.display().to_string(),
         bin_path: state.manager.paths.bin_dir.display().to_string(),
         engines,

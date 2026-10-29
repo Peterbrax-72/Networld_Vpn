@@ -1,8 +1,13 @@
 //! Tauri shell: wires the pure-Rust core to the WebView UI, the tray icon and
 //! the Windows integrations.
 
+#[cfg(target_os = "android")]
+mod android_vpn;
 mod commands;
+#[cfg(desktop)]
 mod tray;
+#[cfg(target_os = "android")]
+mod tun_bridge;
 
 use commands::AppState;
 use networld_core::manager::ManagerEvent;
@@ -21,12 +26,14 @@ pub fn run() {
 
     // The release build has no console and aborts on panic, so a startup crash
     // looks like "the window flashed and vanished". Leave a note to read.
+    #[cfg(desktop)]
     std::panic::set_hook(Box::new(|info| {
         let dir = Paths::discover().config_dir;
         let _ = std::fs::create_dir_all(&dir);
         let _ = std::fs::write(dir.join("crash.log"), format!("{info}\n"));
     }));
 
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
@@ -47,40 +54,53 @@ pub fn run() {
             ));
     }
 
+    let builder = builder.setup(|app| {
+        // `setup` runs on the main thread, outside any Tokio runtime, and the
+        // manager spawns its supervisor task while it is being built. Without
+        // a runtime context that panics ("no reactor running") and, with
+        // panic = "abort", the app dies right after the window opens.
+        #[cfg(desktop)]
+        let paths = Paths::discover();
+        // Android: use the app's private data directory.
+        #[cfg(mobile)]
+        let paths = Paths::at(app.path().app_data_dir()?);
+        let manager = tauri::async_runtime::block_on(async { VpnManager::new(paths) });
+        app.manage(AppState {
+            manager: manager.clone(),
+        });
+
+        #[cfg(desktop)]
+        tray::build(app.handle(), manager.clone())?;
+        spawn_event_bridge(app.handle().clone(), manager.clone());
+        spawn_autoconnect(app.handle().clone(), manager);
+
+        // Launching with --minimized (autostart) keeps the window hidden.
+        #[cfg(desktop)]
+        if std::env::args().any(|a| a == "--minimized") {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.hide();
+            }
+        }
+        Ok(())
+    });
+
+    // Closing the window parks the app in the tray instead of quitting, so an
+    // active tunnel keeps running. (No tray or windows on Android.)
+    #[cfg(desktop)]
+    let builder = builder.on_window_event(|window, event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if window.label() == "main" {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        }
+    });
+
+    // Android: device-wide VPN through Android's VpnService (Kotlin plugin).
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(android_vpn::init());
+
     builder
-        .setup(|app| {
-            // `setup` runs on the main thread, outside any Tokio runtime, and the
-            // manager spawns its supervisor task while it is being built. Without
-            // a runtime context that panics ("no reactor running") and, with
-            // panic = "abort", the app dies right after the window opens.
-            let manager =
-                tauri::async_runtime::block_on(async { VpnManager::new(Paths::discover()) });
-            app.manage(AppState {
-                manager: manager.clone(),
-            });
-
-            tray::build(app.handle(), manager.clone())?;
-            spawn_event_bridge(app.handle().clone(), manager.clone());
-            spawn_autoconnect(app.handle().clone(), manager);
-
-            // Launching with --minimized (autostart) keeps the window hidden.
-            if std::env::args().any(|a| a == "--minimized") {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.hide();
-                }
-            }
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            // Closing the window parks the app in the tray instead of quitting,
-            // so an active tunnel keeps running.
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::get_status,
@@ -118,10 +138,14 @@ pub fn run() {
 fn spawn_event_bridge(app: tauri::AppHandle, manager: Arc<VpnManager>) {
     let mut events = manager.subscribe();
     let handle = app.clone();
+    #[cfg(target_os = "android")]
+    let manager_for_vpn = manager.clone();
     tauri::async_runtime::spawn(async move {
         while let Ok(evt) = events.recv().await {
             match evt {
                 ManagerEvent::Status(s) => {
+                    #[cfg(target_os = "android")]
+                    android_vpn::sync(&handle, &manager_for_vpn, &s);
                     let _ = handle.emit(EVT_STATUS, s);
                 }
                 ManagerEvent::Stats(s) => {

@@ -5,6 +5,7 @@ import { useStore } from "../state/store";
 export default function SettingsPage() {
   const { config, patchSettings, info, toast } = useStore();
   const s = config?.settings;
+  const mobile = !!info?.mobileBuild;
   if (!s) return null;
 
   return (
@@ -18,12 +19,20 @@ export default function SettingsPage() {
 
       <div className="grid-2">
         <Card title="Tunnel">
-          <Field label="Mode" hint="Full device needs administrator rights and the WinTun driver">
-            <select value={s.tunnelMode} onChange={(e) => patchSettings({ tunnelMode: e.currentTarget.value as any })}>
-              <option value="proxy">Local proxy (SOCKS5 + HTTP)</option>
-              <option value="tun">Full device (TUN)</option>
-            </select>
-          </Field>
+          {mobile ? (
+            <p className="field-hint">
+              Device-wide VPN: once connected, all apps on this phone (Wi-Fi and mobile data) go
+              through your config. Android asks for VPN permission the first time. Networld itself
+              is excluded so its own connection to the server is not looped.
+            </p>
+          ) : (
+            <Field label="Mode" hint="Full device needs administrator rights and the WinTun driver">
+              <select value={s.tunnelMode} onChange={(e) => patchSettings({ tunnelMode: e.currentTarget.value as any })}>
+                <option value="proxy">Local proxy (SOCKS5 + HTTP)</option>
+                <option value="tun">Full device (TUN)</option>
+              </select>
+            </Field>
+          )}
           <div className="grid-2">
             <Field label="SOCKS5 port">
               <input
@@ -46,11 +55,13 @@ export default function SettingsPage() {
             checked={s.allowLan}
             onChange={(v) => patchSettings({ allowLan: v })}
           />
-          <Toggle
-            label="Set as Windows system proxy"
-            checked={s.setSystemProxy}
-            onChange={(v) => patchSettings({ setSystemProxy: v })}
-          />
+          {!mobile && (
+            <Toggle
+              label="Set as Windows system proxy"
+              checked={s.setSystemProxy}
+              onChange={(v) => patchSettings({ setSystemProxy: v })}
+            />
+          )}
           {s.tunnelMode === "tun" && (
             <div className="grid-2">
               <Field label="Adapter name">
@@ -67,6 +78,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card title="Security">
+          {!mobile && (
           <Toggle
             label="Kill switch"
             hint={
@@ -78,7 +90,10 @@ export default function SettingsPage() {
             checked={s.killSwitch && !info?.storeBuild}
             onChange={(v) => patchSettings({ killSwitch: v })}
           />
-          <Toggle label="Block IPv6" checked={s.blockIpv6} onChange={(v) => patchSettings({ blockIpv6: v })} />
+          )}
+          {!mobile && (
+            <Toggle label="Block IPv6" checked={s.blockIpv6} onChange={(v) => patchSettings({ blockIpv6: v })} />
+          )}
           <Toggle
             label="Auto-reconnect"
             checked={s.autoReconnect}
@@ -116,6 +131,7 @@ export default function SettingsPage() {
             checked={s.dns.remoteResolve}
             onChange={(v) => patchSettings({ dns: { ...s.dns, remoteResolve: v } })}
           />
+          {!mobile && (
           <Field label="DNS servers" hint="Comma separated, used in TUN mode">
             <input
               value={s.dns.servers.join(", ")}
@@ -124,6 +140,7 @@ export default function SettingsPage() {
               }
             />
           </Field>
+          )}
           <Toggle
             label="UDP forwarding (UDPGW)"
             hint="Needs badvpn-udpgw on the server"
@@ -147,6 +164,7 @@ export default function SettingsPage() {
               ))}
             </select>
           </Field>
+          {!mobile && (
           <div className="row gap mt">
             <Button
               icon="folder"
@@ -161,6 +179,7 @@ export default function SettingsPage() {
               Open config folder
             </Button>
           </div>
+          )}
         </Card>
       </div>
 
@@ -177,10 +196,12 @@ export default function SettingsPage() {
               <span>Platform</span>
               <strong>{info.platform}</strong>
             </div>
-            <div>
-              <span>Package</span>
-              <strong>{info.storeBuild ? "Microsoft Store (MSIX)" : "Sideload"}</strong>
-            </div>
+            {!mobile && (
+              <div>
+                <span>Package</span>
+                <strong>{info.storeBuild ? "Microsoft Store (MSIX)" : "Sideload"}</strong>
+              </div>
+            )}
             <div>
               <span>Config file</span>
               <strong className="mono tiny">{info.configPath}</strong>

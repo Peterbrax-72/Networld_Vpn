@@ -24,5 +24,10 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"
+  ],
+  "platforms": [
+    "windows",
+    "linux",
+    "macOS"
   ]
 }
