@@ -47,6 +47,9 @@ impl KillSwitch {
             return Ok(());
         }
         self.clear_rules().await;
+        // From here rules may exist, so release() must clean up even if a later
+        // step fails.
+        self.engaged = true;
 
         // 1. Allow this app outbound.
         run(
@@ -181,7 +184,9 @@ impl KillSwitch {
     }
 
     pub async fn release(&mut self) {
-        if !cfg!(windows) {
+        // Nothing to undo unless we engaged it: skipping avoids a burst of
+        // netsh calls (and firewall policy resets) on every plain disconnect.
+        if !cfg!(windows) || !self.engaged {
             return;
         }
         let _ = run(
@@ -226,6 +231,7 @@ async fn run(args: &[&str], logs: &Arc<LogBus>) -> Result<()> {
         logs.trace("killswitch", format!("netsh {}", args.join(" ")));
         let out = tokio::process::Command::new("netsh")
             .args(args)
+            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: never flash a console
             .output()
             .await
             .map_err(|e| CoreError::Other(format!("netsh failed: {e}")))?;

@@ -180,3 +180,6 @@ Android shell code could not be compiled in the sandbox (no Android SDK/NDK) - f
 ## Security audit workflow
 Was failing because `.cargo/audit.toml` lacked `quiet` under `[output]` (new cargo-audit) and crypto-bigint 0.7.5 had an advisory (updated to 0.7.10 in Cargo.lock). Warnings (unmaintained GTK/zbus etc.) no longer fail the run. GPL gate now checks the Windows tree only.
 LICENCE NOTE: the Android APK links `socks5-impl` (GPL-3.0-or-later, via tun2proxy). Fine for testing/sideloading with source available; resolve (replace the crate or comply with GPL) before any Play Store release. Windows/Store tree is GPL-free.
+
+## No console flashes (Windows)
+Every netsh/powershell/wireguard.exe spawn now uses CREATE_NO_WINDOW. KillSwitch::release() is a no-op unless the kill switch was engaged (it used to run ~8 netsh calls and reset the firewall policy on every disconnect - the source of the repeated terminal windows).

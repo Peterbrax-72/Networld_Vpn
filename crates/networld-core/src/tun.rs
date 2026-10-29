@@ -143,6 +143,7 @@ impl TunDevice {
 async fn netsh(args: &[&str]) -> Result<()> {
     let out = tokio::process::Command::new("netsh")
         .args(args)
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW: never flash a console
         .output()
         .await
         .map_err(|e| CoreError::Other(format!("netsh: {e}")))?;
@@ -159,9 +160,12 @@ async fn default_gateway() -> Option<String> {
     let out = tokio::process::Command::new("powershell")
         .args([
             "-NoProfile",
+            "-WindowStyle",
+            "Hidden",
             "-Command",
             "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1).NextHop",
         ])
+        .creation_flags(0x0800_0000)
         .output()
         .await
         .ok()?;
