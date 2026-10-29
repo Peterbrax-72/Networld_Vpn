@@ -138,8 +138,59 @@ impl TransportConfig {
     }
 }
 
+/// Proxy ports that normally speak plain HTTP. For these the payload / CONNECT
+/// goes first and TLS to the server follows; any other proxy port (443, 8443,
+/// CDN edges...) is assumed to be a TLS endpoint that must be wrapped first.
+fn proxy_is_plain_http(port: u16) -> bool {
+    matches!(
+        port,
+        80 | 81 | 3128 | 3129 | 8000 | 8008 | 8080 | 8081 | 8888
+    )
+}
+
 /// Build the transport described by `cfg`.
+///
+/// `ProxyTls` has two real-world shapes and configs do not say which one they
+/// are, so the likelier one (chosen from the proxy port) is tried first and the
+/// other one is the automatic fallback.
 pub async fn connect(cfg: &TransportConfig, logs: &Arc<LogBus>) -> Result<BoxStream> {
+    let proxy_port = match (&cfg.mode, &cfg.proxy) {
+        (TransportMode::ProxyTls, Some(p)) => p.port,
+        _ => return connect_with(cfg, logs, false).await,
+    };
+    let first = !proxy_is_plain_http(proxy_port);
+    match connect_with(cfg, logs, first).await {
+        Ok(s) => Ok(s),
+        Err(e) => {
+            logs.warn(
+                "transport",
+                format!(
+                    "{} failed ({e}); retrying with {}",
+                    if first {
+                        "TLS-then-payload"
+                    } else {
+                        "payload-then-TLS"
+                    },
+                    if first {
+                        "payload-then-TLS"
+                    } else {
+                        "TLS-then-payload"
+                    },
+                ),
+            );
+            connect_with(cfg, logs, !first).await
+        }
+    }
+}
+
+/// `tls_first` (ProxyTls only): wrap the link to the proxy / CDN edge in TLS
+/// (SNI = bug host) and inject the payload inside it. Otherwise: payload in
+/// clear text to the proxy, then TLS to the server through it.
+async fn connect_with(
+    cfg: &TransportConfig,
+    logs: &Arc<LogBus>,
+    tls_first: bool,
+) -> Result<BoxStream> {
     let (dial_host, dial_port) = match &cfg.proxy {
         Some(p) if matches!(cfg.mode, TransportMode::Proxy | TransportMode::ProxyTls) => {
             (p.host.clone(), p.port)
@@ -160,6 +211,24 @@ pub async fn connect(cfg: &TransportConfig, logs: &Arc<LogBus>) -> Result<BoxStr
     logs.debug("transport", format!("TCP established → {addr}"));
 
     let mut stream: BoxStream = Box::new(tcp);
+
+    if tls_first {
+        let sni = cfg
+            .tls
+            .sni
+            .clone()
+            .or_else(|| cfg.bug_host.clone())
+            .unwrap_or_else(|| dial_host.clone());
+        logs.info(
+            "tls",
+            format!(
+                "TLS to the proxy first (sni={sni}, verify={})",
+                !cfg.tls.insecure
+            ),
+        );
+        stream = crate::tls::wrap(stream, &sni, &cfg.tls, cfg.connect_timeout).await?;
+        logs.info("tls", "Handshake complete");
+    }
 
     // ---- payload / CONNECT stage -----------------------------------------
     let needs_connect = matches!(cfg.mode, TransportMode::Proxy | TransportMode::ProxyTls);
@@ -215,7 +284,7 @@ pub async fn connect(cfg: &TransportConfig, logs: &Arc<LogBus>) -> Result<BoxStr
     }
 
     // ---- TLS stage --------------------------------------------------------
-    if matches!(cfg.mode, TransportMode::Tls | TransportMode::ProxyTls) {
+    if !tls_first && matches!(cfg.mode, TransportMode::Tls | TransportMode::ProxyTls) {
         let sni = cfg
             .tls
             .sni
@@ -403,5 +472,20 @@ mod tests {
             headers: String::new(),
         };
         assert!(!bad.is_success());
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::proxy_is_plain_http;
+
+    #[test]
+    fn tls_endpoints_are_wrapped_first() {
+        for p in [80, 8080, 3128] {
+            assert!(proxy_is_plain_http(p));
+        }
+        for p in [443, 8443, 2053] {
+            assert!(!proxy_is_plain_http(p));
+        }
     }
 }

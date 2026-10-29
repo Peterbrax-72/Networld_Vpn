@@ -11,7 +11,7 @@ if not manifest.exists():
 dest = root / "java" / "com" / "networld" / "vpn"
 dest.mkdir(parents=True, exist_ok=True)
 here = pathlib.Path(__file__).parent
-for f in ("NativeBridge.kt", "NetworldVpnService.kt", "VpnPlugin.kt"):
+for f in ("NativeBridge.kt", "NetworldVpnService.kt", "VpnPlugin.kt", "MainActivity.kt"):
     shutil.copy(here / f, dest / f)
 
 xml = manifest.read_text()

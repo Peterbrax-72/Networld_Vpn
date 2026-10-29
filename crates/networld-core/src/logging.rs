@@ -33,6 +33,7 @@ impl LogLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LogEntry {
     pub seq: u64,
     pub ts_ms: u64,
@@ -199,5 +200,23 @@ mod tests {
         bus.debug("t", "nope");
         bus.error("t", "yes");
         assert_eq!(bus.snapshot().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn log_entry_uses_camel_case_for_the_ui() {
+        let e = LogEntry {
+            seq: 1,
+            ts_ms: 42,
+            level: LogLevel::Info,
+            tag: "t".into(),
+            message: "m".into(),
+        };
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["tsMs"], 42);
     }
 }

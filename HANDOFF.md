@@ -183,3 +183,12 @@ LICENCE NOTE: the Android APK links `socks5-impl` (GPL-3.0-or-later, via tun2pro
 
 ## No console flashes (Windows)
 Every netsh/powershell/wireguard.exe spawn now uses CREATE_NO_WINDOW. KillSwitch::release() is a no-op unless the kill switch was engaged (it used to run ~8 netsh calls and reset the firewall policy on every disconnect - the source of the repeated terminal windows).
+
+## Android status-bar overlap
+packaging/android/MainActivity.kt (copied over the generated one by patch-android-project.py) applies system-bar/cutout insets as padding so the UI sits below the clock/Wi-Fi icons.
+
+## Connect fix: SSL+proxy configs & log timestamps
+ProxyTls now picks the order from the proxy port: plain-HTTP proxy ports (80/8080/3128...) = payload then TLS; anything else (443, CDN edges) = TLS to the proxy first (SNI=bug host) then payload inside. On failure the other order is tried automatically. LogEntry serialises as camelCase (fixes 'Invalid Date.NaN' in Logs).
+
+## Config sheet scrolling
+styles.css end: .sheet capped to the viewport and .sheet-body (a fieldset) given min-height:0 so it scrolls.
