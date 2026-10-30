@@ -192,3 +192,9 @@ ProxyTls now picks the order from the proxy port: plain-HTTP proxy ports (80/808
 
 ## Config sheet scrolling
 styles.css end: .sheet capped to the viewport and .sheet-body (a fieldset) given min-height:0 so it scrolls.
+
+## Diagnostics + field input attrs
+Payload without trailing blank line logs a warning; 'connection closed' error now reports seconds waited and bytes received. Config text fields set autocapitalize/autocorrect/spellcheck off.
+
+## Swipe navigation
+App.tsx: horizontal swipe (>60px, mostly horizontal) on the content switches Home/Logs/Tools/Settings in rail order; ignored over inputs, popups and the usage chart. Slide animation via .page-swap.

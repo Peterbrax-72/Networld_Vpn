@@ -316,6 +316,15 @@ async fn write_payload(
         "payload",
         format!("Injecting payload in {} segment(s)", chunks.len()),
     );
+    // Servers wait for the blank line that ends an HTTP request head; a payload
+    // without one just sits there until the server gives up.
+    let joined: Vec<u8> = chunks.iter().flat_map(|c| c.data.clone()).collect();
+    if !(joined.ends_with(b"\r\n\r\n") || joined.ends_with(b"\n\n")) {
+        logs.warn(
+            "payload",
+            "Payload does not end with a blank line ([crlf][crlf]); the server may wait forever for the rest of the request",
+        );
+    }
     for (i, chunk) in chunks.iter().enumerate() {
         if chunk.delay_ms > 0 {
             tokio::time::sleep(Duration::from_millis(chunk.delay_ms as u64)).await;
@@ -325,10 +334,10 @@ async fn write_payload(
         }
         stream.write_all(&chunk.data).await?;
         stream.flush().await?;
-        logs.trace(
+        logs.info(
             "payload",
             format!(
-                "segment {}/{} ({} bytes): {}",
+                "sent segment {}/{} ({} bytes): {}",
                 i + 1,
                 chunks.len(),
                 chunk.data.len(),
@@ -356,15 +365,18 @@ impl HttpStatus {
 
 /// Read an HTTP response head (up to the blank line) from the stream.
 pub async fn read_http_response(stream: &mut BoxStream, timeout: Duration) -> Result<HttpStatus> {
+    let started = std::time::Instant::now();
     let fut = async {
         let mut buf = Vec::with_capacity(512);
         let mut byte = [0u8; 1];
         loop {
             let n = stream.read(&mut byte).await?;
             if n == 0 {
-                return Err(CoreError::PayloadRejected(
-                    "connection closed before an HTTP response arrived".into(),
-                ));
+                return Err(CoreError::PayloadRejected(format!(
+                    "connection closed after {:.1}s before an HTTP response arrived ({} byte(s) received)",
+                    started.elapsed().as_secs_f32(),
+                    buf.len()
+                )));
             }
             buf.push(byte[0]);
             if buf.len() >= 4 && &buf[buf.len() - 4..] == b"\r\n\r\n" {

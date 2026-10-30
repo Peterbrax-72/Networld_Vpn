@@ -1014,3 +1014,11 @@ h1 { font-weight: 600; }
 @media (max-width: 640px) {
   .sheet { max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); }
 }
+
+/* ---- swipe between panels --------------------------------------------- */
+.page-swap { height: 100%; }
+.page-swap.next { animation: swap-next 0.22s ease-out; }
+.page-swap.prev { animation: swap-prev 0.22s ease-out; }
+@keyframes swap-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes swap-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .page-swap.next, .page-swap.prev { animation: none; } }
