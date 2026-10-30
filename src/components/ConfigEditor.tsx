@@ -29,6 +29,7 @@ function Txt({
   type = "text",
   mono,
   flex,
+  lower,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -36,6 +37,8 @@ function Txt({
   type?: string;
   mono?: boolean;
   flex?: number;
+  /** Keep the value lower-case (SSH address / user / password). */
+  lower?: boolean;
 }) {
   return (
     <label className="nm-field" style={flex ? { flex } : undefined}>
@@ -45,7 +48,17 @@ function Txt({
         type={type}
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.currentTarget.value)}
+        // Never let a keyboard auto-correct, auto-capitalise or spell-check;
+        // `lower` fields are additionally forced to lower case.
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellcheck={false}
+        autoComplete="off"
+        onChange={(e) =>
+          onChange(
+            lower ? e.currentTarget.value.toLowerCase() : e.currentTarget.value,
+          )
+        }
       />
     </label>
   );
@@ -67,14 +80,20 @@ function Num({
 }) {
   if (masked) {
     return (
-      <label className="nm-field" style={width ? { width, flex: "none" } : undefined}>
+      <label
+        className="nm-field"
+        style={width ? { width, flex: "none" } : undefined}
+      >
         <span className="nm-cap on">{placeholder}</span>
         <input type="text" value="••••" readOnly />
       </label>
     );
   }
   return (
-    <label className="nm-field" style={width ? { width, flex: "none" } : undefined}>
+    <label
+      className="nm-field"
+      style={width ? { width, flex: "none" } : undefined}
+    >
       <span className={`nm-cap ${value ? "on" : ""}`}>{placeholder}</span>
       <input
         type="number"
@@ -148,7 +167,11 @@ function Check({
 }) {
   return (
     <label className="nm-check">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.currentTarget.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.currentTarget.checked)}
+      />
       <span>{label}</span>
     </label>
   );
@@ -158,8 +181,10 @@ function Check({
 
 const HELP: Record<string, string> = {
   ssh: "Payload is the HTTP request sent before the SSH handshake. Tokens like [host], [crlf] and [split] are expanded; Response Status is the reply the gateway must answer with.",
-  dnstt: "DNSTT tunnels SSH inside DNS queries. Point the resolver at any open DNS server, then give the nameserver domain and the server's public key.",
-  wireguard: "Paste the peer values from your .conf. WireGuard needs the tunnel service, so it is unavailable in Microsoft Store builds.",
+  dnstt:
+    "DNSTT tunnels SSH inside DNS queries. Point the resolver at any open DNS server, then give the nameserver domain and the server's public key.",
+  wireguard:
+    "Paste the peer values from your .conf. WireGuard needs the tunnel service, so it is unavailable in Microsoft Store builds.",
   json: "Paste a complete Xray config. Networld replaces the inbounds with its own SOCKS listener and keeps everything else exactly as written.",
   xray: "Address, port and the UUID or password identify the server; Network and TLS must match what the server expects.",
 };
@@ -179,14 +204,19 @@ export default function ConfigEditor({
 
   const proto = useMemo(() => protoOf(profile), [profile]);
   const isNew = !profile.id;
-  const set = (patch: Partial<ServerProfile>) => setP((cur) => ({ ...cur, ...patch }) as ServerProfile);
+  const set = (patch: Partial<ServerProfile>) =>
+    setP((cur) => ({ ...cur, ...patch }) as ServerProfile);
 
   const readOnly = profile.locked;
 
   const save = async () => {
     if (readOnly) return;
     const endpoint =
-      p.kind === "ssh" ? p.host : p.kind === "xray" ? p.address : p.endpoint.split(":")[0];
+      p.kind === "ssh"
+        ? p.host
+        : p.kind === "xray"
+          ? p.address
+          : p.endpoint.split(":")[0];
     if (!endpoint.trim() && !(p.kind === "xray" && p.rawJson?.trim())) {
       toast("warn", "Address is required");
       return;
@@ -210,7 +240,11 @@ export default function ConfigEditor({
   // the X (discard) or the tick (save).
   return (
     <div className="sheet-backdrop">
-      <section className="sheet" role="dialog" aria-label={`${isNew ? "Add" : "Edit"} config`}>
+      <section
+        className="sheet"
+        role="dialog"
+        aria-label={`${isNew ? "Add" : "Edit"} config`}
+      >
         <header className="sheet-bar">
           <span className="sheet-kind">{titleOf(proto)} settings</span>
           <button className="icon-btn" onClick={onClose} title="Close">
@@ -219,7 +253,9 @@ export default function ConfigEditor({
         </header>
 
         <div className="sheet-head">
-          <h2>{readOnly ? "Locked Config" : isNew ? "Add Config" : "Edit Config"}</h2>
+          <h2>
+            {readOnly ? "Locked Config" : isNew ? "Add Config" : "Edit Config"}
+          </h2>
           <div className="row gap">
             <button
               className={`icon-btn square ${showHelp ? "on" : ""}`}
@@ -229,7 +265,12 @@ export default function ConfigEditor({
               ?
             </button>
             {!readOnly && (
-              <button className="icon-btn save" title="Save" disabled={saving} onClick={save}>
+              <button
+                className="icon-btn save"
+                title="Save"
+                disabled={saving}
+                onClick={save}
+              >
                 <Icon name="check" size={20} />
               </button>
             )}
@@ -240,17 +281,28 @@ export default function ConfigEditor({
 
         {readOnly && (
           <p className="sheet-help lock-banner">
-            <Icon name="lock" size={14} /> This config is locked. Its credentials stay hidden and it can't be edited,
-            but it connects normally. Delete it to remove it.
+            <Icon name="lock" size={14} /> This config is locked. Its
+            credentials stay hidden and it can't be edited, but it connects
+            normally. Delete it to remove it.
           </p>
         )}
 
         <fieldset className="sheet-body lock-fieldset" disabled={readOnly}>
-          <Txt value={p.name} onChange={(v) => set({ name: v })} placeholder="Remarks" />
+          <Txt
+            value={p.name}
+            onChange={(v) => set({ name: v })}
+            placeholder="Remarks"
+          />
 
-          {p.kind === "ssh" && <SshFields p={p} set={set} proto={proto} advanced={advanced} />}
-          {p.kind === "xray" && <XrayFields p={p} set={set} proto={proto} advanced={advanced} />}
-          {p.kind === "wireguard" && <WgFields p={p} set={set} advanced={advanced} />}
+          {p.kind === "ssh" && (
+            <SshFields p={p} set={set} proto={proto} advanced={advanced} />
+          )}
+          {p.kind === "xray" && (
+            <XrayFields p={p} set={set} proto={proto} advanced={advanced} />
+          )}
+          {p.kind === "wireguard" && (
+            <WgFields p={p} set={set} advanced={advanced} />
+          )}
 
           <button className="sheet-more" onClick={() => setAdvanced((v) => !v)}>
             <Icon name={advanced ? "chev-up" : "chev"} size={14} />
@@ -281,25 +333,47 @@ function SshFields({
   const slowdns = proto === "dnstt";
   const statusId = p.acceptAnyStatus
     ? "any"
-    : (RESPONSE_STATUSES.find((s) => s.value === (p.expectedStatus ?? 200))?.id ?? "200");
+    : (RESPONSE_STATUSES.find((s) => s.value === (p.expectedStatus ?? 200))
+        ?.id ?? "200");
 
   const setTransport = (next: { proxy?: ProxyType; tls?: TlsType }) => {
     const pr = next.proxy ?? proxy;
     const tl = next.tls ?? tls;
-    set({ mode: deriveMode(pr, tl, slowdns), ...(pr === "none" ? { proxyHost: null, proxyPort: null } : {}) });
+    set({
+      mode: deriveMode(pr, tl, slowdns),
+      ...(pr === "none" ? { proxyHost: null, proxyPort: null } : {}),
+    });
   };
 
   return (
     <>
       <div className="nm-row">
-        <Txt value={p.host} onChange={(v) => set({ host: v })} placeholder="Address" flex={2} />
-        <Num value={p.port} onChange={(v) => set({ port: v })} placeholder="Port" width={110} masked={p.locked} />
+        <Txt
+          value={p.host}
+          onChange={(v) => set({ host: v })}
+          placeholder="Address"
+          flex={2}
+          lower
+        />
+        <Num
+          value={p.port}
+          onChange={(v) => set({ port: v })}
+          placeholder="Port"
+          width={110}
+          masked={p.locked}
+        />
       </div>
-      <Txt value={p.username} onChange={(v) => set({ username: v })} placeholder="Username" />
+      <Txt
+        value={p.username}
+        onChange={(v) => set({ username: v })}
+        placeholder="Username"
+        lower
+      />
       <Txt
         value={p.password}
         onChange={(v) => set({ password: v })}
         placeholder="Password"
+        lower
         type="password"
       />
       <Area
@@ -314,14 +388,22 @@ function SshFields({
         value={statusId}
         onChange={(id) => {
           const hit = RESPONSE_STATUSES.find((s) => s.id === id);
-          set({ acceptAnyStatus: id === "any", expectedStatus: hit?.value ?? null });
+          set({
+            acceptAnyStatus: id === "any",
+            expectedStatus: hit?.value ?? null,
+          });
         }}
-        options={RESPONSE_STATUSES.map((s) => ({ value: s.id, label: s.label }))}
+        options={RESPONSE_STATUSES.map((s) => ({
+          value: s.id,
+          label: s.label,
+        }))}
       />
       <Sel
         label="Response Position"
         value={p.responsePosition ?? "post_request"}
-        onChange={(v) => set({ responsePosition: v as "pre_request" | "post_request" })}
+        onChange={(v) =>
+          set({ responsePosition: v as "pre_request" | "post_request" })
+        }
         options={[
           { value: "pre_request", label: "pre_request" },
           { value: "post_request", label: "post_request" },
@@ -345,6 +427,7 @@ function SshFields({
               value={p.proxyHost ?? ""}
               onChange={(v) => set({ proxyHost: v })}
               placeholder="Proxy host"
+              lower
               flex={2}
             />
             <Num
@@ -361,11 +444,13 @@ function SshFields({
                 value={p.proxyUser ?? ""}
                 onChange={(v) => set({ proxyUser: v })}
                 placeholder="Proxy user"
+                lower
               />
               <Txt
                 value={p.proxyPass ?? ""}
                 onChange={(v) => set({ proxyPass: v })}
                 placeholder="Proxy password"
+                lower
                 type="password"
               />
             </div>
@@ -384,7 +469,11 @@ function SshFields({
       />
 
       {tls === "tls" && (
-        <Txt value={p.sni ?? ""} onChange={(v) => set({ sni: v })} placeholder="SNI / Bug host" />
+        <Txt
+          value={p.sni ?? ""}
+          onChange={(v) => set({ sni: v })}
+          placeholder="SNI / Bug host"
+        />
       )}
 
       {slowdns && (
@@ -457,7 +546,13 @@ function SshFields({
 
 function dns(p: Extract<ServerProfile, { kind: "ssh" }>) {
   return (
-    p.slowdns ?? { resolver: "8.8.8.8:53", publicKey: "", domain: "", transport: "udp", listenPort: 5300 }
+    p.slowdns ?? {
+      resolver: "8.8.8.8:53",
+      publicKey: "",
+      domain: "",
+      transport: "udp",
+      listenPort: 5300,
+    }
   );
 }
 
@@ -486,8 +581,8 @@ function XrayFields({
           rows={14}
         />
         <p className="muted tiny">
-          Inbounds are replaced with Networld's local SOCKS listener; outbounds, routing and DNS are
-          used exactly as written.
+          Inbounds are replaced with Networld's local SOCKS listener; outbounds,
+          routing and DNS are used exactly as written.
         </p>
       </>
     );
@@ -495,13 +590,28 @@ function XrayFields({
 
   const isSs = proto === "shadowsocks" || proto === "shadowsocks2022";
   const isSocks = proto === "socks";
-  const secret = isSocks ? "Password" : isSs || proto === "trojan" ? "Password" : "UUID";
+  const secret = isSocks
+    ? "Password"
+    : isSs || proto === "trojan"
+      ? "Password"
+      : "UUID";
 
   return (
     <>
       <div className="nm-row">
-        <Txt value={p.address} onChange={(v) => set({ address: v })} placeholder="Address" flex={2} />
-        <Num value={p.port} onChange={(v) => set({ port: v })} placeholder="Port" width={110} masked={p.locked} />
+        <Txt
+          value={p.address}
+          onChange={(v) => set({ address: v })}
+          placeholder="Address"
+          flex={2}
+        />
+        <Num
+          value={p.port}
+          onChange={(v) => set({ port: v })}
+          placeholder="Port"
+          width={110}
+          masked={p.locked}
+        />
       </div>
 
       {isSocks && (
@@ -525,7 +635,11 @@ function XrayFields({
           value={p.security}
           onChange={(v) => set({ security: v })}
           options={(proto === "shadowsocks2022"
-            ? ["2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"]
+            ? [
+                "2022-blake3-aes-128-gcm",
+                "2022-blake3-aes-256-gcm",
+                "2022-blake3-chacha20-poly1305",
+              ]
             : ["aes-256-gcm", "aes-128-gcm", "chacha20-ietf-poly1305", "none"]
           ).map((v) => ({ value: v, label: v }))}
         />
@@ -536,19 +650,34 @@ function XrayFields({
           label="Network"
           value={p.network}
           onChange={(v) => set({ network: v })}
-          options={["tcp", "ws", "grpc", "http", "httpupgrade", "quic"].map((v) => ({
-            value: v,
-            label: v,
-          }))}
+          options={["tcp", "ws", "grpc", "http", "httpupgrade", "quic"].map(
+            (v) => ({
+              value: v,
+              label: v,
+            }),
+          )}
         />
       )}
 
-      {(p.network === "ws" || p.network === "http" || p.network === "httpupgrade") && !isSocks && (
-        <div className="nm-row">
-          <Txt value={p.path} onChange={(v) => set({ path: v })} placeholder="Path" flex={2} />
-          <Txt value={p.host} onChange={(v) => set({ host: v })} placeholder="Host header" flex={2} />
-        </div>
-      )}
+      {(p.network === "ws" ||
+        p.network === "http" ||
+        p.network === "httpupgrade") &&
+        !isSocks && (
+          <div className="nm-row">
+            <Txt
+              value={p.path}
+              onChange={(v) => set({ path: v })}
+              placeholder="Path"
+              flex={2}
+            />
+            <Txt
+              value={p.host}
+              onChange={(v) => set({ host: v })}
+              placeholder="Host header"
+              flex={2}
+            />
+          </div>
+        )}
       {p.network === "grpc" && !isSocks && (
         <Txt
           value={p.serviceName}
@@ -569,7 +698,11 @@ function XrayFields({
       />
 
       {p.tls !== "none" && (
-        <Txt value={p.sni} onChange={(v) => set({ sni: v })} placeholder="SNI / Bug host" />
+        <Txt
+          value={p.sni}
+          onChange={(v) => set({ sni: v })}
+          placeholder="SNI / Bug host"
+        />
       )}
 
       {p.tls === "reality" && (
@@ -581,8 +714,16 @@ function XrayFields({
             mono
           />
           <div className="nm-row">
-            <Txt value={p.shortId} onChange={(v) => set({ shortId: v })} placeholder="Short ID" />
-            <Txt value={p.spiderX} onChange={(v) => set({ spiderX: v })} placeholder="SpiderX" />
+            <Txt
+              value={p.shortId}
+              onChange={(v) => set({ shortId: v })}
+              placeholder="Short ID"
+            />
+            <Txt
+              value={p.spiderX}
+              onChange={(v) => set({ spiderX: v })}
+              placeholder="SpiderX"
+            />
           </div>
         </>
       )}
@@ -595,7 +736,13 @@ function XrayFields({
               label="Security"
               value={p.security}
               onChange={(v) => set({ security: v })}
-              options={["auto", "aes-128-gcm", "chacha20-poly1305", "none", "zero"].map((v) => ({
+              options={[
+                "auto",
+                "aes-128-gcm",
+                "chacha20-poly1305",
+                "none",
+                "zero",
+              ].map((v) => ({
                 value: v,
                 label: v,
               }))}
@@ -616,7 +763,14 @@ function XrayFields({
             label="Fingerprint"
             value={p.fingerprint}
             onChange={(v) => set({ fingerprint: v })}
-            options={["chrome", "firefox", "safari", "edge", "ios", "random"].map((v) => ({
+            options={[
+              "chrome",
+              "firefox",
+              "safari",
+              "edge",
+              "ios",
+              "random",
+            ].map((v) => ({
               value: v,
               label: v,
             }))}
@@ -626,7 +780,11 @@ function XrayFields({
             checked={p.allowInsecure}
             onChange={(v) => set({ allowInsecure: v })}
           />
-          <Check label="Mux" checked={p.muxEnabled} onChange={(v) => set({ muxEnabled: v })} />
+          <Check
+            label="Mux"
+            checked={p.muxEnabled}
+            onChange={(v) => set({ muxEnabled: v })}
+          />
           {p.muxEnabled && (
             <Num
               value={p.muxConcurrency}
@@ -683,7 +841,11 @@ function WgFields({
         onChange={(v) => set({ address: list(v) })}
         placeholder="Interface address"
       />
-      <Txt value={p.dns.join(", ")} onChange={(v) => set({ dns: list(v) })} placeholder="DNS" />
+      <Txt
+        value={p.dns.join(", ")}
+        onChange={(v) => set({ dns: list(v) })}
+        placeholder="DNS"
+      />
 
       {advanced && (
         <>
@@ -700,7 +862,11 @@ function WgFields({
             placeholder="Allowed IPs"
           />
           <div className="nm-row">
-            <Num value={p.mtu} onChange={(v) => set({ mtu: v })} placeholder="MTU" />
+            <Num
+              value={p.mtu}
+              onChange={(v) => set({ mtu: v })}
+              placeholder="MTU"
+            />
             <Num
               value={p.persistentKeepalive}
               onChange={(v) => set({ persistentKeepalive: v })}
