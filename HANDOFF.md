@@ -213,3 +213,12 @@ SshTunnel::is_alive also checks handle.is_closed(); 'dead' error logs once with 
 
 ## Android: no traffic after Connected
 Removed Builder.setBlocking(true) from NetworldVpnService (the Rust side epoll-reads the TUN fd; a blocking fd stalls it). tun2proxy warnings/errors + start/stop now appear in Logs under tag vpn-tun. SSH pre-login banner is logged as 'Server message: ...'.
+
+## Settings page
+Trimmed to the Security card only (Tunnel, DNS & UDP, Diagnostics, About removed from the UI; their values keep their defaults in core).
+
+## Settings page removed; Security card now on Tools; no built-in local ports
+SecurityCard (src/components/SecurityCard.tsx) lives under Tools next to the speed test; Settings nav/page removed. Local SOCKS/HTTP ports default to 0 (OS-assigned each connect; legacy 1080/8086 migrate to 0). Proxy port field in the editor has no 8080 default.
+
+## Slimming pass
+Removed dead CSS (.home-strip, .cfg-lock) and unused exports; stale 08-settings store screenshot; Android APK now builds arm64+arm32 only; network probe every 8s. Findings: no unused crates (cargo-machete), no unused Tauri commands, 2 unused CSS blocks only; UI bundle ~260 kB (QR scanner lazy-loaded). Windows-only code (tun.rs, splittunnel.rs, wireguard/xray engines) was NOT deleted: it cannot be compiled/tested in the Linux sandbox.

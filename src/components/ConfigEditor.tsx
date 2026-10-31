@@ -97,7 +97,7 @@ function Num({
       <span className={`nm-cap ${value ? "on" : ""}`}>{placeholder}</span>
       <input
         type="number"
-        value={Number.isFinite(value) ? value : 0}
+        value={Number.isFinite(value) && value ? value : ""}
         placeholder={placeholder}
         onChange={(e) => onChange(Number(e.currentTarget.value) || 0)}
       />
@@ -431,7 +431,7 @@ function SshFields({
               flex={2}
             />
             <Num
-              value={p.proxyPort ?? 8080}
+              value={p.proxyPort ?? 0}
               onChange={(v) => set({ proxyPort: v })}
               placeholder="Proxy port"
               width={110}

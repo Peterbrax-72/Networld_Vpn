@@ -11,8 +11,7 @@ import { IS_TAURI } from "./api";
 export type FileFilter = { name: string; extensions: string[] };
 
 export const NW_FILTER: FileFilter = { name: "Networld config", extensions: ["nw"] };
-export const TXT_FILTER: FileFilter = { name: "Text / links", extensions: ["txt", "nw", "json", "conf"] };
-export const IMG_FILTER: FileFilter = { name: "QR image", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "gif"] };
+const TXT_FILTER: FileFilter = { name: "Text / links", extensions: ["txt", "nw", "json", "conf"] };
 
 function browserDownload(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);

@@ -58,7 +58,7 @@ jobs:
       - name: Install Rust + Android targets
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+          targets: aarch64-linux-android,armv7-linux-androideabi
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -73,8 +73,8 @@ jobs:
       - name: Add the VPN service (Kotlin + manifest)
         run: python3 packaging/android/patch-android-project.py
 
-      - name: Build release APK (arm64 + arm32 + x86_64)
-        run: npx tauri android build --apk
+      - name: Build release APK (arm64 + arm32 only - smaller and faster)
+        run: npx tauri android build --apk --target aarch64 --target armv7
 
       - name: Sign the APK
         id: sign

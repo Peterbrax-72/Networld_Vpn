@@ -6,13 +6,11 @@ import { useStore } from "./state/store";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import Logs from "./pages/Logs";
-import SettingsPage from "./pages/Settings";
 
 const NAV = [
   { id: "home", label: "Home", icon: "home" },
   { id: "logs", label: "Logs", icon: "list" },
   { id: "tools", label: "Tools & speed test", icon: "gauge" },
-  { id: "settings", label: "Settings", icon: "cog" },
 ] as const;
 
 type PageId = (typeof NAV)[number]["id"];
@@ -119,7 +117,6 @@ export default function App() {
           {page === "home" && <Home />}
           {page === "logs" && <Logs />}
           {page === "tools" && <Tools />}
-          {page === "settings" && <SettingsPage />}
         </div>
       </main>
 

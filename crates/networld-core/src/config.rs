@@ -482,8 +482,10 @@ impl Default for Settings {
             reconnect_delay_secs: 5,
             auto_switch_config: false,
             tunnel_mode: TunnelMode::Proxy,
-            socks_port: 1080,
-            http_port: 8086,
+            // 0 = let the OS pick a free local port on every connect (no
+            // built-in fixed ports; the real ones are shown in the status).
+            socks_port: 0,
+            http_port: 0,
             allow_lan: false,
             set_system_proxy: true,
             kill_switch: false,
@@ -590,6 +592,11 @@ impl AppConfig {
         if self.version < CONFIG_VERSION {
             self.version = CONFIG_VERSION;
         }
+        // The old built-in local ports (1080 / 8086) are gone: use free ports.
+        if self.settings.socks_port == 1080 && self.settings.http_port == 8086 {
+            self.settings.socks_port = 0;
+            self.settings.http_port = 0;
+        }
     }
 }
 
@@ -686,6 +693,16 @@ pub fn save(path: &Path, cfg: &AppConfig) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_default_local_ports_migrate_to_free_ports() {
+        let mut cfg = AppConfig::default();
+        cfg.settings.socks_port = 1080;
+        cfg.settings.http_port = 8086;
+        cfg.migrate();
+        assert_eq!((cfg.settings.socks_port, cfg.settings.http_port), (0, 0));
+        assert_eq!(Settings::default().socks_port, 0);
+    }
 
     #[test]
     fn ssh_profile_maps_to_transport() {
