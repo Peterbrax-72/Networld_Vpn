@@ -7,7 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Per-direction copy buffer. 16 KiB keeps a busy tunnel (hundreds of
 /// concurrent sockets) in a few megabytes of RSS without costing throughput.
-const BUF: usize = 16 * 1024;
+const BUF: usize = 32 * 1024;
 
 /// Pump `client` ⇄ `remote`, attributing bytes to the session counters.
 /// Returns `(uploaded, downloaded)`.

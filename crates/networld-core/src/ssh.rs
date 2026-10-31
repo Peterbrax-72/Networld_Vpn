@@ -114,7 +114,12 @@ impl SshTunnel {
         cfg: &SshConfig,
         logs: Arc<LogBus>,
     ) -> Result<Arc<Self>> {
-        let mut rcfg = client::Config::default();
+        // Bigger flow-control window: a high-latency path (CDN-fronted
+        // WebSocket) otherwise stalls waiting for window updates.
+        let mut rcfg = client::Config {
+            window_size: 8 * 1024 * 1024,
+            ..Default::default()
+        };
         if cfg.keepalive_secs > 0 {
             rcfg.keepalive_interval = Some(Duration::from_secs(cfg.keepalive_secs));
         }
@@ -186,13 +191,35 @@ impl SshTunnel {
                 Ok(Box::new(channel.into_stream()))
             }
             Err(e) => {
+                // The server *answering* "no" (host unreachable, refused,
+                // administratively prohibited, too many channels) proves the
+                // session is alive - only transport-level failures count
+                // towards "dead".
+                if matches!(e, russh::Error::ChannelOpenFailure(_)) {
+                    self.logs.debug(
+                        "ssh",
+                        format!("Server refused channel to {host}:{port}: {e}"),
+                    );
+                    return Err(CoreError::Ssh(format!(
+                        "channel open to {host}:{port} refused: {e}"
+                    )));
+                }
                 let streak = self.fail_streak.fetch_add(1, Ordering::Relaxed) + 1;
+                if streak <= 3 {
+                    self.logs.warn(
+                        "ssh",
+                        format!("Channel open to {host}:{port} failed ({streak}/3): {e}"),
+                    );
+                }
                 // A dead session fails every single channel open; three in a
-                // row is our signal to let the manager reconnect.
-                if streak >= 3 {
-                    self.alive.store(false, Ordering::Relaxed);
-                    self.logs
-                        .error("ssh", "Session looks dead after 3 failed channel opens");
+                // row is our signal to let the manager reconnect. Log it once.
+                if streak >= 3 && self.alive.swap(false, Ordering::Relaxed) {
+                    self.logs.error(
+                        "ssh",
+                        format!(
+                            "Session looks dead after 3 failed channel opens (last error: {e})"
+                        ),
+                    );
                 }
                 Err(CoreError::Ssh(format!(
                     "channel open to {host}:{port} failed: {e}"
@@ -202,7 +229,10 @@ impl SshTunnel {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.alive.load(Ordering::Relaxed)
+        // `is_closed` flips as soon as the transport (WebSocket / TLS link) is
+        // gone, so a dead tunnel is noticed at once instead of after three
+        // failed channel opens.
+        self.alive.load(Ordering::Relaxed) && !self.handle.is_closed()
     }
 
     pub async fn disconnect(&self) {

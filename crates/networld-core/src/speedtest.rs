@@ -123,9 +123,19 @@ pub async fn run(
                 let up_start = Instant::now();
                 let up_deadline = up_start + Duration::from_secs(opts.max_secs.min(8));
                 while bytes_up < body_len as u64 && Instant::now() < up_deadline {
-                    match s.write_all(&chunk).await {
-                        Ok(_) => bytes_up += chunk.len() as u64,
-                        Err(_) => break,
+                    match tokio::time::timeout(Duration::from_secs(5), s.write_all(&chunk)).await {
+                        Ok(Ok(_)) => bytes_up += chunk.len() as u64,
+                        Ok(Err(e)) => {
+                            logs.warn("speedtest", format!("Upload write failed: {e}"));
+                            break;
+                        }
+                        Err(_) => {
+                            logs.warn(
+                                "speedtest",
+                                "Upload stalled: the tunnel accepted no data for 5s",
+                            );
+                            break;
+                        }
                     }
                 }
                 let up_secs = up_start.elapsed().as_secs_f64().max(0.001);

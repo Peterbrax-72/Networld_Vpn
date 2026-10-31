@@ -207,3 +207,6 @@ pre_request now waits max 3s for a greeting then sends the payload anyway (the u
 
 ## Rejected-status hint
 A real HTTP reply with an unaccepted status no longer triggers the other TLS order; the log says to set Response Status to 101/any.
+
+## Dead-tunnel detection / diagnostics
+SshTunnel::is_alive also checks handle.is_closed(); 'dead' error logs once with the underlying error; first reconnect attempt waits 1s; speed-test upload writes time out after 5s and log 'Upload stalled'.
