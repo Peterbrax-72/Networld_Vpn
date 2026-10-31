@@ -29,6 +29,7 @@ pub mod killswitch;
 pub mod links;
 pub mod logging;
 pub mod manager;
+pub mod netwatch;
 pub mod payload;
 pub mod relay;
 pub mod sidecar;

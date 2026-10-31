@@ -88,6 +88,12 @@ export async function saveDataUrl(defaultName: string, dataUrl: string): Promise
 
 /** Open a text file (links, .nw bundle). */
 export async function openTextFile(filters: FileFilter[] = [TXT_FILTER]): Promise<{ name: string; text: string } | null> {
+  // Android's picker greys out file types it does not know (".nw"), and the
+  // native dialog hands back content:// URIs. The WebView's own file chooser
+  // shows every file and gives us the contents directly.
+  if (/Android/i.test(navigator.userAgent)) {
+    return pickBrowserFile("*/*", "text");
+  }
   if (IS_TAURI) {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
