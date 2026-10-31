@@ -76,13 +76,25 @@ struct ClientHandler {
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
 
+    async fn auth_banner(
+        &mut self,
+        banner: &str,
+        _session: &mut client::Session,
+    ) -> std::result::Result<(), Self::Error> {
+        // The provider's pre-login message (MOTD / terms / account info).
+        for line in banner.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            self.logs.info("ssh", format!("Server message: {line}"));
+        }
+        Ok(())
+    }
+
     async fn check_server_key(
         &mut self,
         server_public_key: &PublicKeyOrCertificate,
     ) -> std::result::Result<bool, Self::Error> {
         // Tunnelling clients talk to short-lived, frequently re-keyed hosts, so
         // we accept the key but always record it for the Logs tab.
-        self.logs.debug(
+        self.logs.info(
             "ssh",
             format!(
                 "Server host key accepted ({:?})",

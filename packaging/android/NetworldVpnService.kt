@@ -42,7 +42,8 @@ class NetworldVpnService : VpnService() {
             .addAddress("10.255.0.2", 32)
             .addRoute("0.0.0.0", 0)
             .addDnsServer("10.255.0.1")
-            .setBlocking(true)
+            // NOTE: leave the TUN fd NON-blocking (Android's default). The Rust
+            // side reads it with epoll; a blocking fd stalls the whole tunnel.
         // IPv6 is routed into the tunnel and dropped there, so it cannot leak
         // around the VPN; apps fall back to IPv4.
         try {

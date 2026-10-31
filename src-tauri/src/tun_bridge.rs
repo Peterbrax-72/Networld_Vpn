@@ -1,14 +1,57 @@
 //! Android VPN bridge: reads packets from the VpnService TUN fd and forwards
 //! every TCP/DNS flow into Networld's local SOCKS5 proxy (tun2proxy).
 
-use std::sync::Mutex;
+use networld_core::LogBus;
+use std::sync::{Arc, Mutex, OnceLock};
 use tun2proxy::{ArgDns, Args, CancellationToken, ProxyParameters};
+
+static LOGS: OnceLock<Arc<LogBus>> = OnceLock::new();
+
+/// Forwards tun2proxy's `log` output (warnings and errors) to the Logs tab.
+struct BridgeLogger;
+
+impl log::Log for BridgeLogger {
+    fn enabled(&self, m: &log::Metadata) -> bool {
+        m.level() <= log::Level::Warn
+    }
+    fn log(&self, r: &log::Record) {
+        if !self.enabled(r.metadata()) {
+            return;
+        }
+        if let Some(l) = LOGS.get() {
+            let msg = format!("{}", r.args());
+            if r.level() == log::Level::Error {
+                l.error("vpn-tun", msg);
+            } else {
+                l.warn("vpn-tun", msg);
+            }
+        }
+    }
+    fn flush(&self) {}
+}
+
+/// Call once, before `run`, so the bridge can report into the Logs tab.
+pub fn init_logs(logs: Arc<LogBus>) {
+    if LOGS.set(logs).is_ok() {
+        let _ = log::set_boxed_logger(Box::new(BridgeLogger));
+        log::set_max_level(log::LevelFilter::Warn);
+    }
+}
+
+fn note(msg: String) {
+    if let Some(l) = LOGS.get() {
+        l.info("vpn-tun", msg);
+    }
+}
 
 static QUIT: Mutex<Option<CancellationToken>> = Mutex::new(None);
 
 /// Blocks until `stop()` is called or the tunnel dies. Returns 0 on a clean
 /// stop, a negative number on failure.
 pub fn run(tun_fd: i32, socks_port: u16, mtu: u16) -> i32 {
+    note(format!(
+        "TUN bridge starting (fd {tun_fd}, SOCKS5 127.0.0.1:{socks_port}, mtu {mtu})"
+    ));
     let token = CancellationToken::new();
     match QUIT.lock() {
         Ok(mut q) => {
@@ -30,7 +73,7 @@ pub fn run(tun_fd: i32, socks_port: u16, mtu: u16) -> i32 {
             .dns(ArgDns::Virtual)
             .ipv6_enabled(false)
             .setup(false)
-            .verbosity(log::LevelFilter::Info);
+            .verbosity(log::LevelFilter::Warn);
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -45,9 +88,12 @@ pub fn run(tun_fd: i32, socks_port: u16, mtu: u16) -> i32 {
         *q = None;
     }
     match result {
-        Ok(()) => 0,
+        Ok(()) => {
+            note("TUN bridge stopped".into());
+            0
+        }
         Err(e) => {
-            log::error!("{e}");
+            log::error!("TUN bridge failed: {e}");
             -3
         }
     }

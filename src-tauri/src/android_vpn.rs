@@ -34,6 +34,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 
 /// Called for every status change; starts/stops the VpnService to match.
 pub fn sync(app: &tauri::AppHandle, manager: &Arc<VpnManager>, st: &StatusSnapshot) {
+    crate::tun_bridge::init_logs(manager.logs.clone());
     match st.state {
         ConnectionState::Connected => {
             let Some(port) = st.socks_port else { return };
