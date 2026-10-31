@@ -198,3 +198,6 @@ Payload without trailing blank line logs a warning; 'connection closed' error no
 
 ## Swipe navigation
 App.tsx: horizontal swipe (>60px, mostly horizontal) on the content switches Home/Logs/Tools/Settings in rail order; ignored over inputs, popups and the usage chart. Slide animation via .page-swap.
+
+## Network up/down log + Android .nw import
+core/netwatch.rs probes 1.1.1.1/8.8.8.8/9.9.9.9 every 4s (2 misses = down) and logs 'Internet is down / back' under tag network. Android: openTextFile uses the WebView file chooser with accept */* (the native picker hid .nw files and returned content:// URIs).

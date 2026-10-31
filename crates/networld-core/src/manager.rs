@@ -126,6 +126,7 @@ impl VpnManager {
         });
         crate::sysproxy::recover_stale(&mgr.paths.runtime_dir, &mgr.logs);
         mgr.clone().spawn_supervisor();
+        crate::netwatch::spawn(mgr.logs.clone());
         mgr
     }
 
