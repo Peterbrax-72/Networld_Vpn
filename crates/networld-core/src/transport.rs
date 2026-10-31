@@ -260,7 +260,18 @@ async fn connect_with(
                 return Err(CoreError::PayloadRejected(status.line));
             }
         }
+    } else if needs_connect && tls_first {
+        // A TLS-wrapped CDN / stunnel edge is not an HTTP CONNECT proxy: with no
+        // payload there is nothing to say before SSH, so go straight to it.
+        logs.info(
+            "payload",
+            "No payload configured - going straight to SSH over TLS (add a payload if the server needs a WebSocket/HTTP upgrade first)",
+        );
     } else if needs_connect {
+        logs.info(
+            "proxy",
+            "No payload configured - sending a plain HTTP CONNECT",
+        );
         let proxy = cfg.proxy.clone().unwrap_or_default();
         let target_host = cfg.bug_host.clone().unwrap_or_else(|| cfg.host.clone());
         let mut req = format!(
