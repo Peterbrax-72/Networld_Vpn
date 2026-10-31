@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, humanBytes, humanSpeed } from "../bridge/api";
 import { Badge, Button, Card, CopyButton, Stat } from "../components/ui";
+import SecurityCard from "../components/SecurityCard";
 import { useStore } from "../state/store";
 import type { DataUsageLedger, SpeedTestResult } from "../types";
 
@@ -11,7 +12,10 @@ export default function Tools() {
   const [usage, setUsage] = useState<DataUsageLedger | null>(null);
 
   useEffect(() => {
-    api.dataUsage().then(setUsage).catch(() => void 0);
+    api
+      .dataUsage()
+      .then(setUsage)
+      .catch(() => void 0);
   }, [status?.state]);
 
   const connected = status?.state === "connected";
@@ -23,7 +27,9 @@ export default function Tools() {
       <header className="page-head">
         <div>
           <h1>Tools</h1>
-          <p className="muted">Measure the tunnel and review how much data it moved</p>
+          <p className="muted">
+            Measure the tunnel and review how much data it moved
+          </p>
         </div>
       </header>
 
@@ -31,7 +37,13 @@ export default function Tools() {
         <Card
           title="Speed test"
           subtitle="Runs through the active tunnel, not your physical link"
-          right={connected ? <Badge tone="ok">tunnel up</Badge> : <Badge tone="warn">offline</Badge>}
+          right={
+            connected ? (
+              <Badge tone="ok">tunnel up</Badge>
+            ) : (
+              <Badge tone="warn">offline</Badge>
+            )
+          }
         >
           <div className="row gap">
             <Button
@@ -52,22 +64,46 @@ export default function Tools() {
             >
               {running ? "Testing…" : "Run speed test"}
             </Button>
-            {!connected && <span className="muted small">Connect first to enable the test.</span>}
+            {!connected && (
+              <span className="muted small">
+                Connect first to enable the test.
+              </span>
+            )}
           </div>
 
           {result && (
             <>
               <div className="stat-row mt">
-                <Stat label="Latency" value={`${result.latencyMs} ms`} sub={`jitter ${result.jitterMs} ms`} icon="bolt" />
-                <Stat label="Download" value={humanSpeed(result.downloadBps)} sub={humanBytes(result.bytesDown)} icon="download" tone="down" />
-                <Stat label="Upload" value={humanSpeed(result.uploadBps)} sub={humanBytes(result.bytesUp)} icon="upload" tone="up" />
+                <Stat
+                  label="Latency"
+                  value={`${result.latencyMs} ms`}
+                  sub={`jitter ${result.jitterMs} ms`}
+                  icon="bolt"
+                />
+                <Stat
+                  label="Download"
+                  value={humanSpeed(result.downloadBps)}
+                  sub={humanBytes(result.bytesDown)}
+                  icon="download"
+                  tone="down"
+                />
+                <Stat
+                  label="Upload"
+                  value={humanSpeed(result.uploadBps)}
+                  sub={humanBytes(result.bytesUp)}
+                  icon="upload"
+                  tone="up"
+                />
               </div>
               <p className="muted tiny mt">
-                Endpoint {result.endpoint} · {(result.durationMs / 1000).toFixed(1)} s
+                Endpoint {result.endpoint} ·{" "}
+                {(result.durationMs / 1000).toFixed(1)} s
               </p>
             </>
           )}
         </Card>
+
+        <SecurityCard />
 
         <Card title="Connection details">
           <div className="kv">
@@ -81,11 +117,15 @@ export default function Tools() {
             </div>
             <div>
               <span>SOCKS5</span>
-              <strong>{status?.socksPort ? `127.0.0.1:${status.socksPort}` : "—"}</strong>
+              <strong>
+                {status?.socksPort ? `127.0.0.1:${status.socksPort}` : "—"}
+              </strong>
             </div>
             <div>
               <span>HTTP proxy</span>
-              <strong>{status?.httpPort ? `127.0.0.1:${status.httpPort}` : "—"}</strong>
+              <strong>
+                {status?.httpPort ? `127.0.0.1:${status.httpPort}` : "—"}
+              </strong>
             </div>
             {!info?.mobileBuild && (
               <>
@@ -102,8 +142,14 @@ export default function Tools() {
           </div>
           {status?.httpPort && (
             <div className="row gap mt">
-              <CopyButton value={`127.0.0.1:${status.httpPort}`} label="Copy HTTP proxy" />
-              <CopyButton value={`socks5://127.0.0.1:${status.socksPort}`} label="Copy SOCKS URL" />
+              <CopyButton
+                value={`127.0.0.1:${status.httpPort}`}
+                label="Copy HTTP proxy"
+              />
+              <CopyButton
+                value={`socks5://127.0.0.1:${status.socksPort}`}
+                label="Copy SOCKS URL"
+              />
             </div>
           )}
         </Card>
@@ -115,7 +161,8 @@ export default function Tools() {
         right={
           usage ? (
             <Badge tone="accent">
-              {usage.sessions} sessions · {humanBytes(usage.lifetimeDown + usage.lifetimeUp)} lifetime
+              {usage.sessions} sessions ·{" "}
+              {humanBytes(usage.lifetimeDown + usage.lifetimeUp)} lifetime
             </Badge>
           ) : null
         }
@@ -127,10 +174,20 @@ export default function Tools() {
             {days.map(([day, d]) => {
               const total = d.up + d.down;
               return (
-                <div key={day} className="usage-col" title={`${day} · ↓${humanBytes(d.down)} ↑${humanBytes(d.up)}`}>
+                <div
+                  key={day}
+                  className="usage-col"
+                  title={`${day} · ↓${humanBytes(d.down)} ↑${humanBytes(d.up)}`}
+                >
                   <div className="usage-bar">
-                    <div className="usage-down" style={{ height: `${(d.down / peak) * 100}%` }} />
-                    <div className="usage-up" style={{ height: `${(d.up / peak) * 100}%` }} />
+                    <div
+                      className="usage-down"
+                      style={{ height: `${(d.down / peak) * 100}%` }}
+                    />
+                    <div
+                      className="usage-up"
+                      style={{ height: `${(d.up / peak) * 100}%` }}
+                    />
                   </div>
                   <span className="tiny muted">{day.slice(5)}</span>
                   <span className="tiny">{humanBytes(total)}</span>
@@ -155,7 +212,9 @@ export default function Tools() {
                     {e.reason ? ` — ${e.reason}` : ""}
                   </p>
                 </div>
-                <Badge tone={e.available ? "ok" : "warn"}>{e.available ? "ready" : "unavailable"}</Badge>
+                <Badge tone={e.available ? "ok" : "warn"}>
+                  {e.available ? "ready" : "unavailable"}
+                </Badge>
               </li>
             ))}
           </ul>

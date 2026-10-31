@@ -213,3 +213,9 @@ SshTunnel::is_alive also checks handle.is_closed(); 'dead' error logs once with 
 
 ## Android: no traffic after Connected
 Removed Builder.setBlocking(true) from NetworldVpnService (the Rust side epoll-reads the TUN fd; a blocking fd stalls it). tun2proxy warnings/errors + start/stop now appear in Logs under tag vpn-tun. SSH pre-login banner is logged as 'Server message: ...'.
+
+## Settings page
+Trimmed to the Security card only (Tunnel, DNS & UDP, Diagnostics, About removed from the UI; their values keep their defaults in core).
+
+## Settings page removed; Security card now on Tools; no built-in local ports
+SecurityCard (src/components/SecurityCard.tsx) lives under Tools next to the speed test; Settings nav/page removed. Local SOCKS/HTTP ports default to 0 (OS-assigned each connect; legacy 1080/8086 migrate to 0). Proxy port field in the editor has no 8080 default.

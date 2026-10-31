@@ -163,15 +163,6 @@ export default function Home() {
               <Icon name="folder" size={15} /> Open config folder
               </button>
             )}
-            <button
-              className="menu-item plain"
-              onClick={() => {
-                setMenu(null);
-                go("settings");
-              }}
-            >
-              <Icon name="cog" size={15} /> Settings
-            </button>
           </div>
         )}
       </div>
