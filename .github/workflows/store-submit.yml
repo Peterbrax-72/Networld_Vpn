@@ -62,7 +62,7 @@ jobs:
           Write-Host "Using run $id"
 
       - name: Download the MSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: NetworldVPN-*-msix
           merge-multiple: true
