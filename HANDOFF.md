@@ -210,3 +210,6 @@ A real HTTP reply with an unaccepted status no longer triggers the other TLS ord
 
 ## Dead-tunnel detection / diagnostics
 SshTunnel::is_alive also checks handle.is_closed(); 'dead' error logs once with the underlying error; first reconnect attempt waits 1s; speed-test upload writes time out after 5s and log 'Upload stalled'.
+
+## Android: no traffic after Connected
+Removed Builder.setBlocking(true) from NetworldVpnService (the Rust side epoll-reads the TUN fd; a blocking fd stalls it). tun2proxy warnings/errors + start/stop now appear in Logs under tag vpn-tun. SSH pre-login banner is logged as 'Server message: ...'.
