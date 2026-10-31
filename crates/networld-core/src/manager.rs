@@ -592,10 +592,14 @@ impl VpnManager {
                     format!("Reconnecting (attempt {attempt})"),
                 )
                 .await;
-                tokio::time::sleep(std::time::Duration::from_secs(
-                    settings.reconnect_delay_secs.max(1),
-                ))
-                .await;
+                // First retry is quick (the link usually just blipped); later
+                // ones wait the configured delay.
+                let wait = if attempt == 1 {
+                    1
+                } else {
+                    settings.reconnect_delay_secs.max(1)
+                };
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
                 match self.connect(profile_id.clone()).await {
                     Ok(_) => {
                         self.logs.info("manager", "Reconnected successfully");
