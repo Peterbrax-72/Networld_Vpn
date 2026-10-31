@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { clockTime } from "../bridge/api";
-import { Button } from "../components/ui";
+import { Button, CopyButton } from "../components/ui";
 import { useStore } from "../state/store";
 
 /** Just the log — no filters, no search, no tags. One Clear button. */
@@ -17,6 +17,12 @@ export default function Logs() {
     <div className="page logs-page">
       <header className="page-head">
         <h1>Logs</h1>
+        <CopyButton
+          label="Copy all"
+          value={logs
+            .map((l) => `${clockTime(l.tsMs)} ${l.level.toUpperCase()} [${l.tag}] ${l.message}`)
+            .join("\n")}
+        />
         <Button icon="trash" onClick={() => clearLogs()}>
           Clear
         </Button>

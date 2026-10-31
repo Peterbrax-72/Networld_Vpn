@@ -178,6 +178,7 @@ async fn open(dialer: &Arc<dyn Dialer>, host: &str, port: u16, secure: bool) -> 
                 alpn: vec!["http/1.1".into()],
             },
             Duration::from_secs(15),
+            None,
         )
         .await
     } else {

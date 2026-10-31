@@ -24,8 +24,23 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun startVpn(invoke: Invoke) {
         pendingPort = invoke.parseArgs(StartArgs::class.java).socksPort
+        // Android 13+: ask once so the status notification can show.
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            activity.checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                activity.requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 4242)
+            } catch (_: Exception) {}
+        }
         val consent = VpnService.prepare(activity)
-        if (consent != null) {
+        val running = NetworldVpnService.current
+        if (consent == null && running != null) {
+            // Already running (e.g. the local port changed after a reconnect):
+            // no startService() needed, which also works from the background.
+            running.restart(pendingPort)
+            invoke.resolve()
+        } else if (consent != null) {
             // First run: Android shows its "Connection request" dialog.
             startActivityForResult(invoke, consent, "onVpnConsent")
         } else {
@@ -46,9 +61,16 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun stopVpn(invoke: Invoke) {
-        activity.startService(
-            Intent(activity, NetworldVpnService::class.java).setAction(NetworldVpnService.ACTION_STOP)
-        )
+        val running = NetworldVpnService.current
+        if (running != null) {
+            running.shutdown()
+        } else {
+            try {
+                activity.startService(
+                    Intent(activity, NetworldVpnService::class.java).setAction(NetworldVpnService.ACTION_STOP)
+                )
+            } catch (_: Exception) {}
+        }
         invoke.resolve()
     }
 

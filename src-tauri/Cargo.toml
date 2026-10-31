@@ -34,7 +34,7 @@ tauri-plugin-single-instance = "2"
 # Android: device-wide VPN = Android VpnService (Kotlin) + tun2proxy, which turns
 # the TUN packets into SOCKS5 connections to Networld's local proxy.
 [target.'cfg(target_os = "android")'.dependencies]
-tun2proxy = { version = "0.8", default-features = false }
+tun2proxy = { version = "0.8", default-features = false, features = ["udpgw"] }
 log = "0.4"
 
 [features]

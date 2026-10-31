@@ -15,10 +15,19 @@ for f in ("NativeBridge.kt", "NetworldVpnService.kt", "VpnPlugin.kt", "MainActiv
     shutil.copy(here / f, dest / f)
 
 xml = manifest.read_text()
+for perm in (
+    "android.permission.WAKE_LOCK",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED",
+    "android.permission.POST_NOTIFICATIONS",
+):
+    if perm not in xml:
+        xml = xml.replace("<application", f'<uses-permission android:name="{perm}" />\n    <application', 1)
 if "NetworldVpnService" not in xml:
     service = (
         '    <service android:name="com.networld.vpn.NetworldVpnService"\n'
         '        android:exported="false"\n'
+        '        android:foregroundServiceType="systemExempted"\n'
         '        android:permission="android.permission.BIND_VPN_SERVICE">\n'
         "        <intent-filter>\n"
         '            <action android:name="android.net.VpnService" />\n'
@@ -26,5 +35,5 @@ if "NetworldVpnService" not in xml:
         "    </service>\n"
     )
     xml = xml.replace("</application>", service + "    </application>", 1)
-    manifest.write_text(xml)
+manifest.write_text(xml)
 print("Android VPN sources installed")

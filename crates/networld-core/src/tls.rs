@@ -33,6 +33,7 @@ pub async fn wrap(
     sni: &str,
     opts: &TlsOptions,
     timeout: Duration,
+    logs: Option<&Arc<crate::logging::LogBus>>,
 ) -> Result<BoxStream> {
     let mut config = if opts.insecure {
         rustls::ClientConfig::builder_with_provider(provider())
@@ -63,6 +64,16 @@ pub async fn wrap(
         .await
         .map_err(|_| CoreError::Timeout(timeout))?
         .map_err(|e| CoreError::Tls(e.to_string()))?;
+
+    let version = match tls.get_ref().1.protocol_version() {
+        Some(rustls::ProtocolVersion::TLSv1_3) => "TLS 1.3".to_string(),
+        Some(rustls::ProtocolVersion::TLSv1_2) => "TLS 1.2".to_string(),
+        Some(other) => format!("{other:?}"),
+        None => "unknown".to_string(),
+    };
+    if let Some(logs) = logs {
+        logs.info("tls", format!("SSL version: {version}"));
+    }
 
     Ok(Box::new(tls))
 }
