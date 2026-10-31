@@ -527,20 +527,6 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .eng.xray { color: var(--accent-2); background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .eng.native { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
 
-/* status strip -------------------------------------------------------------- */
-
-.home-strip {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 9px 13px; border-radius: 10px;
-  background: var(--panel); border: 1px solid var(--line);
-  font-size: 12px;
-}
-.home-strip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
-.home-strip.connected { border-color: color-mix(in srgb, var(--ok) 34%, transparent); }
-.home-strip.connected .dot { background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: none; }
-.home-strip .spd { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
-.home-strip .spd .icon { margin-left: 6px; }
-
 /* config cards -------------------------------------------------------------- */
 
 .cfg-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-bottom: 88px; flex: 1; }
@@ -875,7 +861,6 @@ h1 { font-weight: 600; }
 .lock-fieldset:disabled input, .lock-fieldset:disabled textarea, .lock-fieldset:disabled select { opacity: 0.75; cursor: not-allowed; }
 .lock-fieldset:disabled .nm-field input { letter-spacing: 0.12em; }
 .lock-banner { display: flex; align-items: center; gap: 8px; color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); }
-.cfg-lock { color: var(--muted); vertical-align: -2px; margin-right: 4px; }
 
 /* =====================================================================
    Compact popup layout (NetMod-style): the window opens at about 460 x 700,

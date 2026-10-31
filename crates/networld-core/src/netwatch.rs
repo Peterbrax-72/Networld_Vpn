@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 
 const PROBES: [&str; 3] = ["1.1.1.1:443", "8.8.8.8:53", "9.9.9.9:443"];
-const INTERVAL: Duration = Duration::from_secs(4);
+const INTERVAL: Duration = Duration::from_secs(8);
 const PROBE_TIMEOUT: Duration = Duration::from_millis(1500);
 /// Consecutive failed probes before the network is declared down.
 const FAILS_TO_DOWN: u32 = 2;

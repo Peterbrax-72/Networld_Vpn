@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  src/            Preact (React API) + TypeScript + Vite     │
 │  pages/          Home (configs + connect) · Logs ·          │
-│                  Tools · Settings                           │
+│                  Tools (speed test + Security card)         │
 │  components/     ConfigEditor (add/edit sheet) · share · ui │
 │  lib/profiles.ts protocol menu, blank configs, card labels  │
 │  state/store.tsx single context store, event subscriptions  │

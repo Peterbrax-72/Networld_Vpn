@@ -11,7 +11,7 @@ import { saveDataUrl, slug } from "../bridge/files";
 const QR_LIMIT = 2500; // byte-mode capacity at the error-correction level we use
 
 /** Render `value` as a QR code; returns a data: URL. */
-export function useQr(value: string, size = 240): { dataUrl: string; error: string } {
+function useQr(value: string, size = 240): { dataUrl: string; error: string } {
   const [dataUrl, setDataUrl] = useState("");
   const [error, setError] = useState("");
 
@@ -71,7 +71,7 @@ export function QrPanel({ value, name, size = 240 }: { value: string; name: stri
 }
 
 /** Decode the first QR code found in an image blob. */
-export async function decodeQrBlob(blob: Blob): Promise<string> {
+async function decodeQrBlob(blob: Blob): Promise<string> {
   const { default: jsQR } = await import("jsqr");
   const bitmap = await createImageBitmap(blob);
   // Downscale very large photos — jsQR is happier under ~1600 px.

@@ -1,0 +1,6 @@
+Files removed from the project in this update - delete them from your repo too
+(unzipping over the folder does not remove files):
+
+  git rm branding/store-screenshots/08-settings.png
+  git rm src/pages/Settings.tsx          # if still present from earlier updates
+  git commit -m "Remove dead files"

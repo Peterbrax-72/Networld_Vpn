@@ -63,10 +63,10 @@ Scope notes:
   **Response Status**, **Response Position**, **Proxy Type**, **TLS Type**.
   Proxy Type × TLS Type is what the core stores as the transport mode, and it
   is what the card prints as `(SSH + HTTP + TLS)`.
-* **QR icon** scans a code; **⋮** holds import/export, logs, config folder and
-  settings.
-* The rail is four icons — **home · logs · tools · settings** — and is
-  icon-only; hover for a label.
+* **QR icon** scans a code; **⋮** holds import/export, logs and the config folder.
+* The rail is three icons — **home · logs · tools** — and is icon-only; hover
+  for a label. Reconnect / auto-switch / kill-switch options live on **Tools**
+  (Security card). There is no Settings page: ports are chosen automatically.
 * **Logs** is deliberately bare: the live stream plus one *Clear* button.
 
 ---
