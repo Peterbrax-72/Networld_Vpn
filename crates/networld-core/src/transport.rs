@@ -220,6 +220,12 @@ async fn connect_with(
     );
 
     let addr = resolve_one(&dial_host, dial_port).await?;
+    if dial_host.parse::<std::net::IpAddr>().is_err() {
+        logs.info(
+            "transport",
+            format!("DNS resolution of {dial_host} → {}", addr.ip()),
+        );
+    }
     let tcp = tokio::time::timeout(cfg.connect_timeout, TcpStream::connect(addr))
         .await
         .map_err(|_| CoreError::Timeout(cfg.connect_timeout))??;
@@ -242,7 +248,7 @@ async fn connect_with(
                 !cfg.tls.insecure
             ),
         );
-        stream = crate::tls::wrap(stream, &sni, &cfg.tls, cfg.connect_timeout).await?;
+        stream = crate::tls::wrap(stream, &sni, &cfg.tls, cfg.connect_timeout, Some(logs)).await?;
         logs.info("tls", "Handshake complete");
     }
 
@@ -336,7 +342,7 @@ async fn connect_with(
                 !cfg.tls.insecure
             ),
         );
-        stream = crate::tls::wrap(stream, &sni, &cfg.tls, cfg.connect_timeout).await?;
+        stream = crate::tls::wrap(stream, &sni, &cfg.tls, cfg.connect_timeout, Some(logs)).await?;
         logs.info("tls", "Handshake complete");
     }
 

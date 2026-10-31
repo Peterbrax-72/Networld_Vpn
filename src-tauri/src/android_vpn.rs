@@ -22,6 +22,9 @@ pub struct VpnHandle<R: Runtime>(pub PluginHandle<R>);
 /// Port the tunnel currently forwards to (0 = VPN off).
 static ACTIVE_PORT: AtomicU16 = AtomicU16::new(0);
 
+/// Lets the notification's Stop button disconnect the whole app.
+static MANAGER: std::sync::OnceLock<Arc<VpnManager>> = std::sync::OnceLock::new();
+
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("networld-vpn")
         .setup(|app, api| {
@@ -35,6 +38,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 /// Called for every status change; starts/stops the VpnService to match.
 pub fn sync(app: &tauri::AppHandle, manager: &Arc<VpnManager>, st: &StatusSnapshot) {
     crate::tun_bridge::init_logs(manager.logs.clone());
+    let _ = MANAGER.set(manager.clone());
     match st.state {
         ConnectionState::Connected => {
             let Some(port) = st.socks_port else { return };
@@ -72,6 +76,10 @@ pub fn sync(app: &tauri::AppHandle, manager: &Arc<VpnManager>, st: &StatusSnapsh
         // Keep the tunnel up while reconnecting so traffic never leaks around it.
         ConnectionState::Disconnected | ConnectionState::Error => {
             if ACTIVE_PORT.swap(0, Ordering::SeqCst) != 0 {
+                // Same process: cancel the bridge directly so the phone gets its
+                // internet back at once, even if the app is in the background
+                // (Android refuses startService() from there).
+                crate::tun_bridge::stop();
                 let app = app.clone();
                 tauri::async_runtime::spawn_blocking(move || {
                     let _ = app
@@ -104,4 +112,22 @@ pub extern "system" fn Java_com_networld_vpn_NativeBridge_stop(
     _this: *mut c_void,
 ) -> i32 {
     crate::tun_bridge::stop()
+}
+
+/// Called by the notification's Stop action: disconnects the tunnel.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_networld_vpn_NativeBridge_disconnect(
+    _env: *mut c_void,
+    _this: *mut c_void,
+) -> i32 {
+    match MANAGER.get() {
+        Some(m) => {
+            let m = m.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = m.disconnect().await;
+            });
+            0
+        }
+        None => -1,
+    }
 }

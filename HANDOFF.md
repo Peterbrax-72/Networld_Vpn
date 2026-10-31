@@ -173,7 +173,7 @@ Optional secrets for a stable signing key: ANDROID_KEYSTORE_BASE64, ANDROID_KEYS
 Scope: SSH / SSL / payload engines. WireGuard/Xray/TUN/kill switch are desktop-only.
 
 ### Android device-wide VPN (NetMod-style)
-On Connected, `src-tauri/src/android_vpn.rs` asks the Kotlin `VpnPlugin` (packaging/android/*.kt, copied into the generated project by `patch-android-project.py` in CI) to start `NetworldVpnService` (Android VpnService, 'key' icon, consent dialog on first run). Its TUN fd goes to Rust `tun_bridge.rs` (tun2proxy crate, virtual DNS) which forwards all TCP/DNS to the local SOCKS5 port. The app itself is excluded from the VPN (no loop); IPv6 is routed in and dropped (no leak); the tunnel stays up during auto-reconnect and stops on Disconnected/Error. UDP other than DNS is dropped (SSH SOCKS has no UDP).
+On Connected, `src-tauri/src/android_vpn.rs` asks the Kotlin `VpnPlugin` (packaging/android/*.kt, copied into the generated project by `patch-android-project.py` in CI) to start `NetworldVpnService` (Android VpnService, 'key' icon, consent dialog on first run). Its TUN fd goes to Rust `tun_bridge.rs` (tun2proxy crate, virtual DNS) which forwards all TCP/DNS to the local SOCKS5 port. The app itself is excluded from the VPN (no loop); IPv6 is routed in and dropped (no leak); the tunnel stays up during auto-reconnect and stops on Disconnected/Error. UDP: tun2proxy runs with udpgw; if 127.0.0.1:7300 is reachable through the tunnel (badvpn-udpgw on the server) UDP is tunnelled, otherwise UDP is dropped and Logs warn "This server does not support UDP".
 UNVERIFIED on a device: Android code was never compiled in the sandbox (tun_bridge was host-checked only). Expect small CI fixes on first run.
 Android shell code could not be compiled in the sandbox (no Android SDK/NDK) - first CI run may need small fixes.
 
@@ -222,3 +222,9 @@ SecurityCard (src/components/SecurityCard.tsx) lives under Tools next to the spe
 
 ## Slimming pass
 Removed dead CSS (.home-strip, .cfg-lock) and unused exports; stale 08-settings store screenshot; Android APK now builds arm64+arm32 only; network probe every 8s. Findings: no unused crates (cargo-machete), no unused Tauri commands, 2 unused CSS blocks only; UI bundle ~260 kB (QR scanner lazy-loaded). Windows-only code (tun.rs, splittunnel.rs, wireguard/xray engines) was NOT deleted: it cannot be compiled/tested in the Linux sandbox.
+
+## Android: VPN left on after tunnel stopped (os error 111)
+Log showed SOCKS stopped but tun2proxy kept running -> 'Connection refused (111)' and no internet. Now: Rust cancels the TUN bridge directly on Disconnected/Error, the service stops itself when the bridge ends, and the plugin drives the running service via a static ref (startService() is refused from the background). Provider HTML banners are stripped to plain text. NOTE: some providers (ssh-tunnel.net) allow max 2 simultaneous connections per account.
+
+## NetMod-parity pass
+Logs now show: DNS resolution line, `SSL version: TLS 1.x`, `Server version: SSH-2.0-...` (Sniff wrapper in ssh.rs), host-key `Fingerprint: SHA256:...`; Logs page has a Copy-all button. Android: NetworldVpnService is a foreground service (ongoing notification with Stop -> NativeBridge.disconnect -> manager.disconnect, PARTIAL_WAKE_LOCK, systemExempted type, POST_NOTIFICATIONS asked on Android 13+; manifest perms injected by patch-android-project.py; all wrapped in try/catch). UDPGW: tun_bridge probes 127.0.0.1:7300 via the local SOCKS port before enabling tun2proxy `udpgw`. UNVERIFIED on a device: notification/foreground behaviour and UDPGW (tun_bridge host-checked only).

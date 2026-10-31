@@ -44,6 +44,35 @@ fn note(msg: String) {
     }
 }
 
+/// Where the server's UDP gateway (badvpn-udpgw) listens, as seen from the server.
+const UDPGW_ADDR: [u8; 4] = [127, 0, 0, 1];
+const UDPGW_PORT: u16 = 7300;
+
+/// Asks our local SOCKS5 proxy to open 127.0.0.1:7300 on the server side. If it
+/// answers "succeeded" the server runs a UDP gateway and UDP (calls, games,
+/// QUIC) can ride the tunnel.
+fn udpgw_reachable(socks_port: u16) -> bool {
+    use std::io::{Read, Write};
+    use std::time::Duration;
+    let Ok(mut s) = std::net::TcpStream::connect_timeout(
+        &std::net::SocketAddr::from(([127, 0, 0, 1], socks_port)),
+        Duration::from_secs(2),
+    ) else {
+        return false;
+    };
+    let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(5)));
+    let mut hello = [0u8; 2];
+    let mut req = vec![5, 1, 0, 5, 1, 0, 1];
+    req.extend_from_slice(&UDPGW_ADDR);
+    req.extend_from_slice(&UDPGW_PORT.to_be_bytes());
+    if s.write_all(&req).is_err() || s.read_exact(&mut hello).is_err() {
+        return false;
+    }
+    let mut reply = [0u8; 4];
+    s.read_exact(&mut reply).is_ok() && reply[1] == 0
+}
+
 static QUIT: Mutex<Option<CancellationToken>> = Mutex::new(None);
 
 /// Blocks until `stop()` is called or the tunnel dies. Returns 0 on a clean
@@ -67,6 +96,16 @@ pub fn run(tun_fd: i32, socks_port: u16, mtu: u16) -> i32 {
         let proxy = ProxyParameters::try_from(format!("socks5://127.0.0.1:{socks_port}"))
             .map_err(|e| format!("bad proxy address: {e}"))?;
         let mut args = Args::default();
+        if udpgw_reachable(socks_port) {
+            args.udpgw_server(std::net::SocketAddr::from((UDPGW_ADDR, UDPGW_PORT)));
+            note("UDPGW found on the server: UDP traffic is tunnelled".into());
+        } else if let Some(l) = LOGS.get() {
+            l.warn(
+                "vpn-tun",
+                "This server does not support UDP (no UDPGW on 127.0.0.1:7300). \
+                 Web and apps work, but calls, games and QUIC will not.",
+            );
+        }
         args.proxy(proxy)
             .tun_fd(Some(tun_fd))
             .close_fd_on_drop(false)

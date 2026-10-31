@@ -82,7 +82,7 @@ impl client::Handler for ClientHandler {
         _session: &mut client::Session,
     ) -> std::result::Result<(), Self::Error> {
         // The provider's pre-login message (MOTD / terms / account info).
-        for line in banner.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        for line in banner_text(banner) {
             self.logs.info("ssh", format!("Server message: {line}"));
         }
         Ok(())
@@ -94,6 +94,15 @@ impl client::Handler for ClientHandler {
     ) -> std::result::Result<bool, Self::Error> {
         // Tunnelling clients talk to short-lived, frequently re-keyed hosts, so
         // we accept the key but always record it for the Logs tab.
+        if let PublicKeyOrCertificate::PublicKey { key, .. } = server_public_key {
+            self.logs.info(
+                "ssh",
+                format!(
+                    "Fingerprint: {}",
+                    key.fingerprint(russh::keys::HashAlg::Sha256)
+                ),
+            );
+        }
         self.logs.info(
             "ssh",
             format!(
@@ -102,6 +111,107 @@ impl client::Handler for ClientHandler {
             ),
         );
         Ok(true)
+    }
+}
+
+/// Provider banners are often HTML (`<br>`, `<b>`, `<font ...>`). Turn one into
+/// readable plain-text lines.
+pub fn banner_text(banner: &str) -> Vec<String> {
+    let mut out = String::new();
+    let mut tag = String::new();
+    let mut in_tag = false;
+    for c in banner.chars() {
+        match (in_tag, c) {
+            (false, '<') => {
+                in_tag = true;
+                tag.clear();
+            }
+            (true, '>') => {
+                in_tag = false;
+                let t = tag.trim_start_matches('/').to_ascii_lowercase();
+                if t.starts_with("br") || t.starts_with('p') || t.starts_with("div") {
+                    out.push('\n');
+                }
+            }
+            (true, _) => tag.push(c),
+            (false, _) => out.push(c),
+        }
+    }
+    out.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .lines()
+        .map(|l| {
+            l.trim()
+                .trim_start_matches('>')
+                .trim_start_matches('_')
+                .trim()
+                .to_string()
+        })
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+/// Passes bytes through untouched while noting the server's first line
+/// (`SSH-2.0-<software>`), so the Logs can show "Server version".
+struct Sniff {
+    inner: BoxStream,
+    logs: Arc<LogBus>,
+    seen: Vec<u8>,
+    done: bool,
+}
+
+impl tokio::io::AsyncRead for Sniff {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let res = std::pin::Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let std::task::Poll::Ready(Ok(())) = &res {
+            if !self.done {
+                let fresh = buf.filled()[before..].to_vec();
+                self.seen.extend_from_slice(&fresh);
+                if let Some(end) = self.seen.iter().position(|b| *b == b'\n') {
+                    let line = String::from_utf8_lossy(&self.seen[..end])
+                        .trim()
+                        .to_string();
+                    if line.starts_with("SSH-") {
+                        self.logs.info("ssh", format!("Server version: {line}"));
+                    }
+                    self.done = true;
+                    self.seen = Vec::new();
+                } else if self.seen.len() > 512 {
+                    self.done = true;
+                    self.seen = Vec::new();
+                }
+            }
+        }
+        res
+    }
+}
+
+impl tokio::io::AsyncWrite for Sniff {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 }
 
@@ -142,6 +252,12 @@ impl SshTunnel {
 
         logs.info("ssh", "Starting SSH transport handshake");
         let handler = ClientHandler { logs: logs.clone() };
+        let stream = Sniff {
+            inner: stream,
+            logs: logs.clone(),
+            seen: Vec::new(),
+            done: false,
+        };
         let mut handle = client::connect_stream(rcfg, stream, handler)
             .await
             .map_err(|e| CoreError::Ssh(format!("handshake failed: {e}")))?;
@@ -274,5 +390,23 @@ impl Dialer for SshDialer {
 
     fn is_alive(&self) -> bool {
         self.tunnel.is_alive()
+    }
+}
+
+#[cfg(test)]
+mod banner_tests {
+    use super::banner_text;
+
+    #[test]
+    fn html_banner_becomes_plain_lines() {
+        let html = "<br>\n<b><font color ='#1f845a'>>_____ www.ssh-tunnel.net</font></b>\n<br><br>\nYou are allowed a <b>maximum of 2 connection</b> for using SSH account!!<br>";
+        let lines = banner_text(html);
+        assert_eq!(
+            lines,
+            vec![
+                "www.ssh-tunnel.net".to_string(),
+                "You are allowed a maximum of 2 connection for using SSH account!!".to_string()
+            ]
+        );
     }
 }

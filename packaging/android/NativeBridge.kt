@@ -12,4 +12,7 @@ class NativeBridge {
     external fun run(tunFd: Int, socksPort: Int, mtu: Int): Int
 
     external fun stop(): Int
+
+    /** Disconnects the whole app (used by the notification's Stop button). */
+    external fun disconnect(): Int
 }
