@@ -204,3 +204,6 @@ core/netwatch.rs probes 1.1.1.1/8.8.8.8/9.9.9.9 every 4s (2 misses = down) and l
 
 ## Payload handshake leniency
 pre_request now waits max 3s for a greeting then sends the payload anyway (the user's config had pre_request and a silent server stalled 15s). Expected status 200 accepts any 2xx/101 (WebSocket upgrade).
+
+## Rejected-status hint
+A real HTTP reply with an unaccepted status no longer triggers the other TLS order; the log says to set Response Status to 101/any.

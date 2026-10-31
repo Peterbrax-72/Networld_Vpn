@@ -165,6 +165,18 @@ pub async fn connect(cfg: &TransportConfig, logs: &Arc<LogBus>) -> Result<BoxStr
     let first = !proxy_is_plain_http(proxy_port);
     match connect_with(cfg, logs, first).await {
         Ok(s) => Ok(s),
+        // The server answered with a real HTTP status we do not accept: the
+        // order was right, so retrying the other one would only hide this.
+        Err(CoreError::PayloadRejected(m)) if m.starts_with("HTTP/") => {
+            logs.warn(
+                "payload",
+                format!(
+                    "Server replied \"{m}\", which the config's Response Status does not accept. \
+                     Set Response Status to 101 (WebSocket) or \"any\"."
+                ),
+            );
+            Err(CoreError::PayloadRejected(m))
+        }
         Err(e) => {
             logs.warn(
                 "transport",
