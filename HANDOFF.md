@@ -201,3 +201,6 @@ App.tsx: horizontal swipe (>60px, mostly horizontal) on the content switches Hom
 
 ## Network up/down log + Android .nw import
 core/netwatch.rs probes 1.1.1.1/8.8.8.8/9.9.9.9 every 4s (2 misses = down) and logs 'Internet is down / back' under tag network. Android: openTextFile uses the WebView file chooser with accept */* (the native picker hid .nw files and returned content:// URIs).
+
+## Payload handshake leniency
+pre_request now waits max 3s for a greeting then sends the payload anyway (the user's config had pre_request and a silent server stalled 15s). Expected status 200 accepts any 2xx/101 (WebSocket upgrade).

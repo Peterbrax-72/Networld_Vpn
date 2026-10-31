@@ -117,6 +117,10 @@ impl TransportConfig {
             return true;
         }
         match self.expected_status {
+            // "200 Connection established" is the NetMod default, but
+            // WebSocket gateways answer 101 Switching Protocols (and some 2xx
+            // variants): treat 200 as "any success".
+            Some(200) => status.is_success(),
             Some(code) => status.code == code,
             None => status.is_success(),
         }
@@ -243,12 +247,23 @@ async fn connect_with(
 
         // Some gateways answer before they will look at anything we send.
         if cfg.response_position == ResponsePosition::PreRequest {
-            let status = read_http_response(&mut stream, cfg.response_timeout).await?;
-            logs.info("payload", format!("Greeting → {}", status.line));
-            if !cfg.status_accepted(&status) {
-                return Err(CoreError::PayloadRejected(status.line));
+            // Most servers never greet first. Give a real greeting a few
+            // seconds, then send the payload anyway instead of stalling.
+            let wait = cfg.response_timeout.min(Duration::from_secs(3));
+            match read_http_response(&mut stream, wait).await {
+                Ok(status) => {
+                    logs.info("payload", format!("Greeting → {}", status.line));
+                    if !cfg.status_accepted(&status) {
+                        return Err(CoreError::PayloadRejected(status.line));
+                    }
+                    reads = reads.saturating_sub(1);
+                }
+                Err(CoreError::Timeout(_)) => logs.info(
+                    "payload",
+                    "No greeting from the server (Response Position is pre_request) - sending the payload anyway",
+                ),
+                Err(e) => return Err(e),
             }
-            reads = reads.saturating_sub(1);
         }
 
         write_payload(&mut stream, tpl, &ctx, logs).await?;
@@ -454,10 +469,13 @@ mod tests {
         assert!(cfg.status_accepted(&status(101)));
         assert!(!cfg.status_accepted(&status(403)));
 
-        // an explicit expected status is exact
+        // 200 (the UI default) means "any success", incl. WebSocket 101
         cfg.expected_status = Some(200);
         assert!(cfg.status_accepted(&status(200)));
-        assert!(!cfg.status_accepted(&status(201)));
+        assert!(cfg.status_accepted(&status(101)));
+        assert!(!cfg.status_accepted(&status(403)));
+
+        // any other explicit status is exact
         cfg.expected_status = Some(101);
         assert!(!cfg.status_accepted(&status(200)));
         assert!(cfg.status_accepted(&status(101)));
