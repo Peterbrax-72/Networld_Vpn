@@ -228,3 +228,6 @@ Log showed SOCKS stopped but tun2proxy kept running -> 'Connection refused (111)
 
 ## NetMod-parity pass
 Logs now show: DNS resolution line, `SSL version: TLS 1.x`, `Server version: SSH-2.0-...` (Sniff wrapper in ssh.rs), host-key `Fingerprint: SHA256:...`; Logs page has a Copy-all button. Android: NetworldVpnService is a foreground service (ongoing notification with Stop -> NativeBridge.disconnect -> manager.disconnect, PARTIAL_WAKE_LOCK, systemExempted type, POST_NOTIFICATIONS asked on Android 13+; manifest perms injected by patch-android-project.py; all wrapped in try/catch). UDPGW: tun_bridge probes 127.0.0.1:7300 via the local SOCKS port before enabling tun2proxy `udpgw`. UNVERIFIED on a device: notification/foreground behaviour and UDPGW (tun_bridge host-checked only).
+
+## SSH handshake diagnostics
+SshTunnel::connect times out after 20s with a hint; Sniff logs "Server did not send an SSH greeting, it sent: ..." if the first line after the 101 isn't SSH-. Sniff has a pass-through unit test (57 tests).

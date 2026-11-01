@@ -180,10 +180,22 @@ impl tokio::io::AsyncRead for Sniff {
                         .to_string();
                     if line.starts_with("SSH-") {
                         self.logs.info("ssh", format!("Server version: {line}"));
+                    } else {
+                        let shown: String = line.chars().take(120).collect();
+                        self.logs.warn(
+                            "ssh",
+                            format!("Server did not send an SSH greeting, it sent: {shown:?}"),
+                        );
                     }
                     self.done = true;
                     self.seen = Vec::new();
                 } else if self.seen.len() > 512 {
+                    let shown: String =
+                        String::from_utf8_lossy(&self.seen[..120]).chars().collect();
+                    self.logs.warn(
+                        "ssh",
+                        format!("Server did not send an SSH greeting, it sent: {shown:?}"),
+                    );
                     self.done = true;
                     self.seen = Vec::new();
                 }
@@ -258,9 +270,21 @@ impl SshTunnel {
             seen: Vec::new(),
             done: false,
         };
-        let mut handle = client::connect_stream(rcfg, stream, handler)
-            .await
-            .map_err(|e| CoreError::Ssh(format!("handshake failed: {e}")))?;
+        let mut handle = tokio::time::timeout(
+            Duration::from_secs(20),
+            client::connect_stream(rcfg, stream, handler),
+        )
+        .await
+        .map_err(|_| {
+            CoreError::Ssh(
+                "SSH handshake timed out after 20s: the tunnel opened but the server never \
+                 sent its SSH banner. Check the TLS/payload mode (port 80 is usually plain \
+                 WebSocket, 443 TLS), or whether the account is at its connection limit \
+                 (some providers allow only 2)."
+                    .into(),
+            )
+        })?
+        .map_err(|e| CoreError::Ssh(format!("handshake failed: {e}")))?;
 
         logs.info("ssh", format!("Authenticating as '{}'", cfg.username));
         let ok = match &cfg.auth {
@@ -408,5 +432,36 @@ mod banner_tests {
                 "You are allowed a maximum of 2 connection for using SSH account!!".to_string()
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod sniff_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn sniff_passes_bytes_through_and_logs_version() {
+        let logs = Arc::new(LogBus::new(100));
+        let (a, mut b) = tokio::io::duplex(1024);
+        let inner: BoxStream = Box::new(a);
+        let mut s = Sniff {
+            inner,
+            logs: logs.clone(),
+            seen: Vec::new(),
+            done: false,
+        };
+        b.write_all(b"SSH-2.0-OpenSSH_9.6\r\nrest").await.unwrap();
+        let mut got = vec![0u8; 64];
+        let n = s.read(&mut got).await.unwrap();
+        assert_eq!(&got[..n], b"SSH-2.0-OpenSSH_9.6\r\nrest");
+        s.write_all(b"hello").await.unwrap();
+        let mut back = [0u8; 5];
+        b.read_exact(&mut back).await.unwrap();
+        assert_eq!(&back, b"hello");
+        assert!(logs
+            .snapshot()
+            .iter()
+            .any(|l| l.message.contains("Server version: SSH-2.0-OpenSSH_9.6")));
     }
 }
