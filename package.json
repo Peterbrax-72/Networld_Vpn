@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
-    "@tauri-apps/plugin-dialog": "^2.0.1",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-fs": "^2.0.3",
     "jsqr": "^1.4.0",
     "preact": "^10.24.3",
